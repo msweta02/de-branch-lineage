@@ -62,6 +62,11 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 astro dev start                                  # Airflow UI
 ```
 
+`verify_scenarios.py` re-seeds the warehouse in place for each scenario, so it
+leaves it in the `both` state — both bugs planted. Re-run the seed generator and
+`runner.py` before using the warehouse as a healthy baseline, or the DAGs in the
+Airflow UI will read a doubly-broken warehouse.
+
 `astro dev start` needs ports 8080 and 5434. This project pins Postgres to 5434
 in `.astro/config.yaml` because 5432 is commonly taken.
 

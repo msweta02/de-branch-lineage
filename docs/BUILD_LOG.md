@@ -93,7 +93,7 @@ subsequent draw shifted, so the healthy and broken runs produced *different
 trades* -- 54,475 rows against 54,502 -- and the "delta" between them was
 measuring a different book, not a bug. Fixed by generating every rate row and
 removing the BUG A row as a post-filter. All four scenarios now produce a
-byte-identical `raw.trades` (54,475 rows, gross 14,203,360,943.73), so the
+byte-identical `raw.trades` (54,475 rows, gross 6,346,061,649.20), so the
 delta is attributable to the bug and nothing else. This was the single most
 important correctness fix in Phase 0; without it every number in the demo
 would have been noise.

@@ -3,7 +3,7 @@
 
 Produces a DuckDB file holding the *raw* landing tables that the four SQL
 modules under ``include/sql/`` transform. Volume is deliberately credible --
-~50k trades over 30 business dates, 12 books, 8 counterparties, 5 currencies
+~50k trades over 22 business dates, 12 books, 8 counterparties, 5 currencies
 -- because a pipeline you can trace by hand does not demonstrate anything.
 
 Two bugs can be planted independently, so the pipeline can be shown healthy

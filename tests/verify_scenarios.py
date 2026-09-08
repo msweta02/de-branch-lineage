@@ -13,6 +13,10 @@ Row counts alone do not locate either bug: BUG A loses no rows at all, and BUG B
 loses rows only inside a CTE. The null counts are what move. That contrast is
 the reason this project exists, so the report prints both.
 
+Each scenario is built by re-seeding the warehouse in place, so on exit the
+warehouse is left in the state of the *last* scenario built -- ``both`` by
+default, not ``healthy``. Re-seed before using it as a healthy baseline.
+
 Usage::
 
     python tests/verify_scenarios.py
@@ -164,6 +168,11 @@ def main() -> int:
             h = results[n]["hops"][i]
             cells += f"{h['rows']:>11,} /{(h['nulls'] if h['nulls'] is not None else 0):>5,}"
         print(f"{hop['relation']:26s}{str(hop['measure'] or '-'):22s}{cells}")
+
+    print("\n" + "-" * 100)
+    print(f"WAREHOUSE STATE   left in the '{names[-1]}' state -- the last scenario built.")
+    print("Re-seed before using it as a healthy baseline:")
+    print("    python include/seed/generate.py && python include/runner.py")
 
     print()
     return 0

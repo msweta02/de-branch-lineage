@@ -12,7 +12,7 @@ did" is how these failures actually arrive.
     python include/seed/generate.py --bug-a --bug-b
 
 All four scenarios produce a byte-identical `raw.trades` — 54,475 rows, gross
-14,203,360,943.73 — so any delta between them is attributable to the bug and
+6,346,061,649.20 — so any delta between them is attributable to the bug and
 nothing else. See BUILD_LOG.md, "Surprise 4", for why this took a fix.
 
 ---
