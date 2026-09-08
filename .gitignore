@@ -78,3 +78,8 @@ include/data/*.duckdb.wal
 include/dbt_fixture/target/
 include/dbt_fixture/dbt_packages/
 include/dbt_fixture/logs/
+
+# dbt writes an anonymous-usage id here
+include/dbt_fixture/.user.yml
+# the dbt adapter venv (see requirements-dbt.txt)
+.venv-dbt/
