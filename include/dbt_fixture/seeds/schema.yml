@@ -1,0 +1,13 @@
+version: 2
+
+seeds:
+  - name: fx_rates
+    description: >
+      Daily FX rates against USD. The GBP row for 2026-09-03 is deliberately
+      absent -- this is the compressed form of BUG A.
+    columns:
+      - name: rate_date
+      - name: ccy
+      - name: rate
+  - name: trades
+    description: Ten trades over three dates, three of them in GBP.

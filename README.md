@@ -1,45 +1,165 @@
-Overview
-========
+# de-branch-lineage
 
-Welcome to Astronomer! This project was generated after you ran 'astro dev init' using the Astronomer CLI. This readme describes the contents of the project, as well as how to run Apache Airflow on your local machine.
+**Branch-level lineage for Airflow.** Every lineage tool on the market is
+column-level: it will tell you that `net_amount` derives from `amt_net`. None of
+them tell you *which branch* a row took — which `CASE` arm evaluated, which
+`WHERE` predicate excluded it, which join missed.
 
-Project Contents
-================
+That gap is documented by the incumbent. dbt's column-level lineage
+documentation states that it reflects lineage from `SELECT` statements and
+"doesn't reflect other usage like joins and filters". Both bugs planted in this
+project are a join and a filter.
 
-Your Astro project contains the following files and folders:
+> **Status: Phase 0.** The pipeline, the two planted bugs and the verification
+> harness are complete and reproducible. The library itself
+> (`include/branchlin/`) is stub modules with docstrings only. See
+> [docs/BUILD_LOG.md](docs/BUILD_LOG.md).
 
-- dags: This folder contains the Python files for your Airflow DAGs. By default, this directory includes one example DAG:
-    - `example_astronauts`: This DAG shows a simple ETL pipeline example that queries the list of astronauts currently in space from the Open Notify API and prints a statement for each astronaut. The DAG uses the TaskFlow API to define tasks in Python, and dynamic task mapping to dynamically print a statement for each astronaut. For more on how this DAG works, see our [Getting started tutorial](https://www.astronomer.io/docs/learn/get-started-with-airflow).
-- Dockerfile: This file contains a versioned Astro Runtime Docker image that provides a differentiated Airflow experience. If you want to execute other commands or overrides at runtime, specify them here.
-- include: This folder contains any additional files that you want to include as part of your project. It is empty by default.
-- packages.txt: Install OS-level packages needed for your project by adding them to this file. It is empty by default.
-- requirements.txt: Install Python packages needed for your project by adding them to this file. It is empty by default.
-- plugins: Add custom or community plugins for your project to this file. It is empty by default.
-- airflow_settings.yaml: Use this local-only file to specify Airflow Connections, Variables, and Pools instead of entering them in the Airflow UI as you develop DAGs in this project.
+## What it will do
 
-Deploy Your Project Locally
-===========================
+**DIAGNOSE** — given a wrong value in a report, walk backwards through the SQL
+in DAG order. At each hop, check whether the arithmetic reconciles and show
+which branch the row took. Stop at the first hop that doesn't balance: that's
+the root cause. Everything upstream of the break is marked untrusted, because
+the trace derived it from logic that is itself broken.
 
-Start Airflow on your local machine by running 'astro dev start'.
+**REMEDIATE** — embargo downstream publishing, walk the asset graph to find the
+blast radius, recompute in dependency order, then pause at a human approval gate
+before notifying external consumers that a published figure was wrong. Teardown
+lifts the embargo whether the run succeeded or failed.
 
-This command will spin up five Docker containers on your machine, each for a different Airflow component:
+The SQL parsed during diagnosis comes from the DAG bundle version that *actually
+ran* on the date in question — not from today's repo. That is the argument for
+why this belongs in an orchestrator rather than a standalone tool: only the
+orchestrator knows which code produced which run.
 
-- Postgres: Airflow's Metadata Database
-- Scheduler: The Airflow component responsible for monitoring and triggering tasks
-- DAG Processor: The Airflow component responsible for parsing DAGs
-- API Server: The Airflow component responsible for serving the Airflow UI and API
-- Triggerer: The Airflow component responsible for triggering deferred tasks
+## Runtime
 
-When all five containers are ready the command will open the browser to the Airflow UI at http://localhost:8080/. You should also be able to access your Postgres Database at 'localhost:5432/postgres' with username 'postgres' and password 'postgres'.
+| | |
+|---|---|
+| Astro Runtime | `3.3-7` |
+| Airflow | **3.3.1+astro.4** |
+| Python | 3.14.7 |
+| Task SDK | 1.3.1+astro.2 |
+| Warehouse | DuckDB 1.5.5 |
 
-Note: If you already have either of the above ports allocated, you can either [stop your existing Docker containers or change the port](https://www.astronomer.io/docs/astro/cli/troubleshoot-locally#ports-are-not-available-for-my-local-airflow-webserver).
+**Why 3.3 and not 3.1.** Human-in-the-loop operators behave differently either
+side of 3.3. On Airflow 3.1 and 3.2 a HITL operator defers onto the
+**triggerer**, so the approval gate in REMEDIATE depends on a healthy triggerer
+process. From 3.3 the scheduler parks the task in an **`awaiting_input`** state
+directly. This project is built against the 3.3 behaviour. Backporting to 3.1 or
+3.2 would change the approval gate and nothing else.
 
-Deploy Your Project to Astronomer
-=================================
+## Quickstart
 
-If you have an Astronomer account, pushing code to a Deployment on Astronomer is simple. For deploying instructions, refer to Astronomer documentation: https://www.astronomer.io/docs/astro/deploy-code/
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-Contact
-=======
+.venv/bin/python include/seed/generate.py        # healthy warehouse
+.venv/bin/python include/runner.py               # run all four modules
+.venv/bin/python tests/verify_scenarios.py       # all four bug combinations
 
-The Astronomer CLI is maintained with love by the Astronomer team. To report a bug or suggest a change, reach out to our support.
+astro dev start                                  # Airflow UI
+```
+
+`astro dev start` needs ports 8080 and 5434. This project pins Postgres to 5434
+in `.astro/config.yaml` because 5432 is commonly taken.
+
+## The pipeline
+
+Four modules, 20 SQL files, ~50,000 trades over 22 business dates, 12 books, 8
+counterparties, 5 currencies. Each module is one Airflow DAG; the modules are
+wired to each other with Assets, so reporting waits on positions waits on trades
+waits on reference.
+
+```
+01_reference   calendar, FX rates, book hierarchy, counterparty, coverage window
+02_trades      ingest, dedupe, amend, enrich, convert to USD, classify
+03_positions   aggregate, corporate actions, mark-to-market, accrual, netting
+04_reporting   daily P&L, regulatory extract, desk summary, recon control
+```
+
+Every `.sql` file is one statement, with its output and inputs declared in a
+header comment that both `include/runner.py` and (in Phase 1)
+`branchlin.sources.rawfiles` read:
+
+```sql
+-- target: trd.trades_converted
+-- depends: trd.trades_enriched, ref.fx_rates, ref.validity_window
+```
+
+## The two planted bugs
+
+Both are toggled from the seed generator, so the pipeline can be shown healthy
+and then broken **without editing a line of SQL**. The SQL is byte-identical in
+both states — which is how these failures actually arrive: the code didn't
+change, the reference data did.
+
+```bash
+.venv/bin/python include/seed/generate.py --bug-a     # join failure
+.venv/bin/python include/seed/generate.py --bug-b     # filter failure
+```
+
+### BUG A — a JOIN failure
+
+The GBP rate for 2026-09-03 is missing from `raw.fx_rates`. Note *missing*, not
+null: a null would have been rejected by the not-null check in
+`02_load_fx_rates.sql`. A row that never arrived cannot be rejected.
+
+```
+01_reference/02_load_fx_rates      GBP rate for 2026-09-03 never lands
+        ↓                          the coverage control checks min/max dates
+01_reference/05_ref_validity_window   only, so a hole in the middle passes
+        ↓
+02_trades/05_convert_currency      LEFT JOIN misses → base_amount = NULL
+        ↓                          (LEFT, so no row is lost — only the value)
+02_trades/06_classify_product      NULL >= 25000000 is NULL, not TRUE, so the
+        ↓                          CASE falls through to its ELSE arm
+03_positions/03_mark_to_market     SUM() silently skips the NULLs
+        ↓
+04_reporting/03_desk_summary       −105,995.31 USD, with no null, no warning
+                                   and no missing row anywhere on the report
+```
+
+**Ten relations, three module boundaries, twenty-two reconcilable branch points.**
+`04_reporting/04_recon_control` — the control that exists to catch this — passes
+clean, because it reconciles trade *counts* (which tie exactly, since no row is
+lost) and reconciles amounts against a total that is itself downstream of the
+break.
+
+### BUG B — a FILTER failure
+
+`ref.calendar.accrual_period_end` is seeded as the last day of the month instead
+of the first day of the next one. The accrual window in
+`03_positions/04_accrue_interest.sql` is half-open (`>= start AND < end`), which
+is correct SQL against a correct calendar, so it silently excludes every trade
+booked on the last calendar day of a month.
+
+Positions are LEFT JOINed to the accrual basis rather than filtered by it, so
+the rows survive and the day does not vanish from the report — it just comes
+back light, on one day a month, in a column nobody reconciles.
+
+One join, one filter: deliberately the two things dbt's column-level lineage
+documents that it does not cover.
+
+## Verified figures
+
+`tests/verify_scenarios.py` rebuilds and reruns the pipeline under all four
+combinations. All four produce a byte-identical `raw.trades` (54,475 rows), so
+every delta below is attributable to the bug and nothing else.
+
+| scenario | P&L @ 2026-09-03 | delta | P&L @ 2026-08-31 | delta |
+|---|---:|---:|---:|---:|
+| healthy | 607,617.49 | — | 685,940.98 | — |
+| bug_a | 501,622.18 | **−105,995.31** | 685,940.98 | 0.00 |
+| bug_b | 607,617.49 | 0.00 | 663,923.90 | **−22,017.08** |
+| both | 501,622.18 | −105,995.31 | 663,923.90 | −22,017.08 |
+
+**Row counts do not find either bug.** Under BUG A every relation holds exactly
+the same number of rows as the healthy run, at every one of the twenty hops. The
+only thing that moves is the null count — and it reaches zero again by the time
+it gets to the report.
+
+## Licence
+
+Apache-2.0.

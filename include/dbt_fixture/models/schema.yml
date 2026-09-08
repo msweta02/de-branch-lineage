@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: stg_trades
+  - name: stg_fx_rates
+  - name: fct_trades_converted
+    description: >
+      Left-joins trades to FX rates on (currency, trade_date). Where the rate is
+      absent, base_amount is null.
+  - name: fct_desk_summary
+    description: >
+      Aggregates fct_trades_converted. sum() skips the nulls, so the total for
+      2026-09-03 is short and nothing on the row says so.

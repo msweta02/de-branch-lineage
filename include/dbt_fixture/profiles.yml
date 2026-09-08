@@ -1,0 +1,9 @@
+# Kept inside the project so `dbt compile` works with no ~/.dbt setup at all.
+# Point DBT_PROFILES_DIR here, or run dbt from this directory.
+branchlin_fixture:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: fixture.duckdb
+      threads: 1
