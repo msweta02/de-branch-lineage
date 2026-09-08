@@ -1,0 +1,17 @@
+# Astro Runtime 3.3-7 (Airflow 3.3.1, Python 3.14) ships the provider packages:
+# https://www.astronomer.io/docs/astro/runtime-image-architecture#provider-packages
+#
+# Core dependencies only. No Spark, no cloud SDKs -- the whole demo must run on
+# a judge's laptop with one command. DuckDB is the warehouse.
+#
+# The optional dbt adapter's dependencies live in requirements-dbt.txt and are
+# deliberately NOT installed in this image.
+
+sqlglot==30.18.0
+duckdb==1.5.5
+
+# Pinned to the version Astro Runtime 3.3-7 already ships, NOT to latest.
+# pandas 3.0 is a major release and upgrading it inside the Airflow image risks
+# breaking providers that were resolved against 2.x. We use pandas for result
+# formatting only, so there is nothing to gain from the bump.
+pandas==2.3.3

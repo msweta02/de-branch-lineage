@@ -1,0 +1,80 @@
+.git
+.env
+.DS_Store
+airflow_settings.yaml
+__pycache__/
+astro
+.venv
+.astro/standalone/
+.astro/worktrees/
+airflow-webserver.pid
+webserver_config.py
+airflow.cfg
+airflow.db
+.astro/*.local.yml
+.astro/*.local.yaml
+
+**/.astro/dbt_metadata.json
+**/.astro/manifest.slim.json
+
+# ---------------------------------------------------------------- Python
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+.eggs/
+.installed.cfg
+*.egg
+MANIFEST
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Testing / coverage
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+nosetests.xml
+
+# Type checkers / linters
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# Notebooks / editors
+.ipynb_checkpoints/
+.idea/
+.vscode/
+*.swp
+*~
+
+# ------------------------------------------------- de-branch-lineage
+# Generated warehouse -- rebuild with `python include/seed/generate.py`
+include/data/*.duckdb
+include/data/*.duckdb.wal
+*.duckdb
+*.duckdb.wal
+
+# dbt fixture build artefacts
+include/dbt_fixture/target/
+include/dbt_fixture/dbt_packages/
+include/dbt_fixture/logs/

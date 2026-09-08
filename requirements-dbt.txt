@@ -1,0 +1,17 @@
+# OPTIONAL adapter dependencies -- not installed in the core image.
+#
+# branchlin.sources.dbt reads a dbt manifest.json + target/compiled/. That path
+# is an adapter, not a core dependency: the demo pipeline is raw SQL. Installing
+# dbt-core pulls a large transitive tree (jinja2, agate, protobuf, dbt-semantic-
+# interfaces, ...) that would bloat the Airflow image for a feature most users
+# of the raw-SQL path never touch.
+#
+# Install into a venv when working on the dbt fixture:
+#   python3 -m venv .venv-dbt && .venv-dbt/bin/pip install -r requirements-dbt.txt
+#
+# To bake it into the image instead, add to the Dockerfile:
+#   COPY requirements-dbt.txt .
+#   RUN pip install --no-cache-dir -r requirements-dbt.txt
+
+dbt-core==1.12.4
+dbt-duckdb==1.11.0
