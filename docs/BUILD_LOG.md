@@ -210,7 +210,5 @@ DuckDB writes a sibling `.wal`.
   the 20-file layout cannot give that at *file* granularity on one straight
   line, since reference feeds trades at file 5 of 6. Decide which granularity
   the demo quotes before the tracer is written.
-  layout in the brief cannot produce a 15-relation straight line -- reference
-  feeds trades at file 5 of 6, and there are only 20 files total. At
 * `astro dev pytest` cannot write its cache directory (`Permission denied:
   /pytest-cache-files-*`). Harmless -- tests pass -- but noisy.
