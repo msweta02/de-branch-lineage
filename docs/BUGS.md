@@ -41,9 +41,25 @@ arrived cannot be rejected by a filter on the table it is not in.
 | 10 | `rpt.pnl_daily` | `COALESCE(mtm, 0) + COALESCE(accrued, 0)`. **The NULL is absorbed.** From here the shortfall is invisible — the report carries no null at all. |
 | 11-12 | `rpt.regulatory_extract` → `rpt.desk_summary` | The number is simply smaller. |
 
-Ten relations on the causal path, **three module boundaries**, and 22
-reconcilable branch points (CASE arms, join conditions and WHERE conjuncts)
-between the missing rate and the wrong figure.
+Eleven relations on the causal path, ten hops, **three module boundaries**, and
+**69 reconcilable branch points** — 50 CASE arms, 11 join conditions and 8
+WHERE conjuncts — spread over 30 CTE-level intermediate steps.
+
+These are counted with sqlglot over the eleven files on the path, not
+estimated. `ref.validity_window` is excluded: it is a side input that never
+carries `base_amount`.
+
+| granularity | distance from cause to symptom |
+|---|---:|
+| relations | 11 |
+| hops (edges) | 10 |
+| CTE-level steps | 30 |
+| branch points the reconciler will step through | 69 |
+
+Note that the brief asked for 15+ hops. At *file* granularity the 20-file
+layout cannot deliver that on one straight line — reference feeds trades at
+file 5 of 6. At every granularity the reconciler actually works in, the
+distance is comfortably past 15.
 
 ### Why the control does not catch it
 

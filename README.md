@@ -121,7 +121,10 @@ null: a null would have been rejected by the not-null check in
                                    and no missing row anywhere on the report
 ```
 
-**Ten relations, three module boundaries, twenty-two reconcilable branch points.**
+**Eleven relations, ten hops, three module boundaries, and 69 reconcilable
+branch points** (50 CASE arms, 11 join conditions, 8 WHERE conjuncts) between
+the missing rate and the wrong figure, spread over 30 CTE-level steps. Counted
+with sqlglot over the causal path, not estimated.
 `04_reporting/04_recon_control` — the control that exists to catch this — passes
 clean, because it reconciles trade *counts* (which tie exactly, since no row is
 lost) and reconciles amounts against a total that is itself downstream of the

@@ -205,11 +205,12 @@ DuckDB writes a sibling `.wal`.
 
 ### Still open for Phase 1
 
-* The hop distance is 10 relations on the BUG A causal path, not 15. The 20-file
+* Hop distance on the BUG A causal path, counted with sqlglot: 11 relations,
+  10 edges, 30 CTE-level steps, 69 branch points. The brief asked for 15+ hops;
+  the 20-file layout cannot give that at *file* granularity on one straight
+  line, since reference feeds trades at file 5 of 6. Decide which granularity
+  the demo quotes before the tracer is written.
   layout in the brief cannot produce a 15-relation straight line -- reference
   feeds trades at file 5 of 6, and there are only 20 files total. At
-  branch-point granularity (CASE arms, join conditions, WHERE conjuncts), which
-  is what the reconciler will actually step through, the distance is 22. Worth
-  deciding which number the demo quotes before the tracer is written.
 * `astro dev pytest` cannot write its cache directory (`Permission denied:
   /pytest-cache-files-*`). Harmless -- tests pass -- but noisy.
