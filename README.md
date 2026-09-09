@@ -10,12 +10,14 @@ documentation states that it reflects lineage from `SELECT` statements and
 "doesn't reflect other usage like joins and filters". Both bugs planted in this
 project are a join and a filter.
 
-> **Status: Phase 1.** The pipeline, the two planted bugs and the verification
-> harness are complete and reproducible, and **DIAGNOSE is implemented** — it
-> finds both planted bugs, names the branch responsible, and stays quiet on a
-> clean warehouse. 96 tests. REMEDIATE, the human approval gate and any UI are
-> Phase 2 and are not built. See [docs/STATUS_TECHNICAL.md](docs/STATUS_TECHNICAL.md)
-> and [docs/BUILD_LOG.md](docs/BUILD_LOG.md).
+> **Status: complete.** The pipeline, the two planted bugs and the verification
+> harness are reproducible; **DIAGNOSE** finds both bugs, names the branch
+> responsible and stays quiet on a clean warehouse; **REMEDIATE** embargoes the
+> affected reports, recomputes in dependency order, pauses at a human approval
+> gate, and lifts the embargo whether the run succeeded or failed. **167 tests.**
+> There is no plugin UI, by decision — the Required Actions tab is the UI. See
+> [docs/STATUS_TECHNICAL.md](docs/STATUS_TECHNICAL.md) and
+> [docs/BUILD_LOG.md](docs/BUILD_LOG.md).
 
 ## What it does
 
@@ -73,15 +75,84 @@ carry the amount. `ref.validity_window` is a declared input of
 never visits it — a graph walk would report a path two hops longer than the one
 the fault actually took.
 
-**REMEDIATE** (Phase 2, not built) — embargo downstream publishing, walk the asset graph to find the
-blast radius, recompute in dependency order, then pause at a human approval gate
+**REMEDIATE** — embargo downstream publishing, walk the graph to find the blast
+radius, recompute in dependency order, then pause at a human approval gate
 before notifying external consumers that a published figure was wrong. Teardown
 lifts the embargo whether the run succeeded or failed.
 
-The SQL parsed during diagnosis comes from the DAG bundle version that *actually
-ran* on the date in question — not from today's repo. That is the argument for
-why this belongs in an orchestrator rather than a standalone tool: only the
+```
+SETUP     embargo        mark the affected reports not-for-publication
+TASK      blast_radius   walk forward from the correction over the -- depends: graph
+TASK      correction     apply the operator-supplied data fix
+TASK      recompute      re-run the affected relations in dependency order
+TASK      verify_report  mapped over the affected reports, one row each
+TASK      measure        read the corrected figure, build the evidence
+GATE      approval       ApprovalOperator; parks in awaiting_input
+TASK      notify         MOCKED — writes a row, sends nothing
+TEARDOWN  lift_embargo   runs on SUCCESS or FAILURE
+```
+
+The gate is not bypassable: `notify` is downstream of it, so a rejection skips
+the notification. Telling an external consumer that a published number was
+wrong is the one genuinely irreversible action in the project, which is why it
+is mocked *and* gated. Here is what a real parked gate showed:
+
+```
+| published (wrong) | 501,622.18 |
+| corrected         | 607,617.49 |
+| delta             | 105,995.31 |
+
+- break at `trd.trades_converted` in CTE `converted` (02_trades/05_convert_currency.sql)
+- code version the original ran under: `b5e8748df0c1` (via run-xcom)
+```
+
+That delta is the Phase 0 figure to the cent, reached from the opposite
+direction: Phase 0 measured it by planting the bug, Phase 2 by remediating it.
+
+**The failure path is the part worth watching.** Run REMEDIATE with the
+recompute rigged to fail and the run is reported failed, the teardown lifts the
+embargo anyway, the approval gate is never reached, nothing is notified, and the
+reports still hold the original figure rather than a half-recomputed one. A
+script would need its own `finally` and would still lose if the process were
+killed — and having got the cleanup right, it would then have to avoid
+reporting success just because the cleanup worked. That is the argument for an
+orchestrator, and it is a test (`TestFailurePath`), not a claim.
+
+### Which code ran
+
+The SQL parsed during diagnosis comes from the commit that *actually ran* on the
+date in question — not from today's working tree. That is the argument for why
+this belongs in an orchestrator rather than a standalone tool: only the
 orchestrator knows which code produced which run.
+
+Airflow 3.3 can do this natively. A git-backed DAG bundle records a commit SHA
+on every DagRun, and instantiating the bundle at that SHA materialises the
+repository as it was; that was spiked first, because it was the biggest risk in
+the project, and it works — including the awkward part, that `include/sql/`
+lives outside `dags/` and is still inside the bundle. But serving DAGs from a
+git bundle means a code change is not live until it is committed and pushed,
+which is a real cost during development.
+
+So the shipped arrangement is a **hybrid**: the pipeline keeps running from the
+local `dags-folder` bundle, and each SQL task records its own
+`git rev-parse HEAD` per run. `branchlin.pinning` then resolves a version in
+four steps, most authoritative first — Airflow's own `DagRun.bundle_version`,
+then a `conf['code_version']` supplied at trigger, then the recorded XCom, then
+the working tree — and reads the SQL at that commit with `git archive`, which
+never writes to the object database. A trace that cannot establish a version
+says `UNPINNED` rather than quietly reporting today's code:
+
+```
+version_for_run('04_reporting_pipeline', '2026-09-09')
+  -> b5e8748df0c1 / run-xcom
+```
+
+Two pieces of plumbing make this work and are easy to miss: `git` in
+`packages.txt`, because the Astro Runtime image ships no git binary, and
+`docker-compose.override.yml`, which mounts `.git` read-only into the
+containers — Astro bind-mounts `include`, `tests`, `dags` and `plugins` and
+nothing else, so without it the containers hold the working tree with no history
+behind it.
 
 ## Runtime
 
@@ -110,13 +181,28 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python tests/verify_scenarios.py       # all four bug combinations
 
 .venv/bin/pip install -r requirements-dev.txt    # pytest, for the library tests
-.venv/bin/python -m pytest tests/branchlin       # the DIAGNOSE engine, 77 tests
+.venv/bin/python -m pytest tests/branchlin       # the library, 110 tests
 
 astro dev start                                  # Airflow UI
-astro dev pytest tests/                          # everything, in the image: 96
+astro dev pytest tests/                          # in the image: 145, 22 skipped
 ```
 
-The six version-pinning tests skip inside the image: Astro bind-mounts
+**To run all 167 with nothing skipped**, use the scheduler container. It is the
+only environment with both the `.git` mount and a migrated metadata database, so
+it is the only one that can exercise version pinning and the two orchestration
+paths:
+
+```bash
+docker exec -e PYTHONPATH=/usr/local/airflow:/usr/local/airflow/include \
+  $(docker ps --format '{{.Names}}' | grep scheduler) \
+  python -m pytest /usr/local/airflow/tests -q
+```
+
+`astro dev pytest` skips 22 of them. It runs a one-off container that uses the
+built image but brings its own mounts, so it has no `.git`, and it falls back to
+an empty SQLite metadata database. Both skips are deliberate and reported.
+
+The six version-pinning tests need git history: Astro bind-mounts
 `include`, `tests`, `dags` and `plugins`, so the containers have the working
 tree but no git history to pin against.
 

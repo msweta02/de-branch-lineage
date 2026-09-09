@@ -1,6 +1,6 @@
 # Project status — plain language
 
-**As of 2026-09-08 · Phase 0 complete · Phase 1 (the diagnostic tool) built · Phase 2 not started**
+**As of 2026-09-09 · all three phases complete · 167 automated tests**
 
 Audience: anyone who needs to know where this project stands without reading
 code. No technical background assumed.
@@ -44,8 +44,10 @@ the specific decision responsible — for both planted faults, and without being
 told where to look. It stays silent when nothing is wrong, which matters just as
 much: a tool that cries wolf is a tool nobody runs.
 
-What is *not* built is the recovery workflow — the part that freezes
-publication, recalculates, and pauses for human sign-off. That is Phase 2.
+**Phase 2 built the recovery workflow**, which is what happens after the fault
+is found: hold the affected reports back from publication, recalculate them in
+the right order once the data is corrected, then stop and ask a person before
+telling anyone outside that a published figure was wrong.
 
 Concretely, what exists and works today:
 
@@ -98,9 +100,38 @@ only thing that moves is a count of blank values — and that returns to zero
 before it reaches the report. By the time a human sees the number, every
 conventional signal says the pipeline is healthy.
 
-**5. Supporting work.** The pipeline runs as four automated workflows in
-Airflow (the industry-standard scheduling tool) with 25 automated structural
-tests passing; and a small, separate demonstration reproduces Fault A inside the
+**5. The recovery workflow, with a human in the loop.** Once a fault is found,
+a second automated workflow: it marks every affected report as
+not-for-publication, works out exactly what is downstream of the correction,
+recalculates those figures in dependency order, and then **stops** — presenting
+a person with the wrong figure, the corrected figure, the difference, the
+decision that caused it, and the version of the instructions the original ran
+under. Only after that person approves does anything get recorded as sent to an
+outside party. Verified end to end: a report short by 105,995.31 USD is
+restated to the correct 607,617.49.
+
+The notification itself is **deliberately faked** — it writes a row to a table
+and sends nothing. Telling a regulator or a client that a published number was
+wrong is the only genuinely irreversible action in the project, and a
+demonstration should not be one misconfiguration away from performing it for
+real.
+
+**6. Proof that it fails safely.** This is the part worth the most attention.
+There is a test that deliberately breaks the recalculation halfway through, and
+checks what the system does about it: the publication hold is released anyway,
+nobody is asked to approve a recovery that did not finish, nothing is sent
+outside, and the reports are left showing their original figures rather than a
+half-finished mixture. The run is still reported as failed — a successful
+cleanup is not allowed to disguise a failed recovery.
+
+That combination is difficult to get right in a simple script and is the main
+argument for building this inside a scheduler: the cleanup has to run whether
+things went well or badly, it has to run even if the process is killed, and
+getting it to run must not make a broken recovery look successful.
+
+**7. Supporting work.** The pipeline runs as four automated workflows in
+Airflow (the industry-standard scheduling tool) with structural tests on every
+one of them; and a small, separate demonstration reproduces Fault A inside the
 market-leading competitor's own tooling, showing its tracing does not point at
 the cause.
 
@@ -122,15 +153,14 @@ search.
 
 ## What has NOT been built
 
-**The recovery workflow.** Freezing further publication, working out everything
-affected, recalculating in the right order, then **pausing for human sign-off**
-before telling outside parties that a published figure was wrong. That pause is
-a deliberate design choice: no machine should notify a regulator or a client
-unprompted. None of it exists yet — it is the whole of Phase 2.
+No graphical interface was built. The scheduler's own approval screen is where
+the human decision happens, which was a deliberate trade: a custom interface
+would have cost more time than it demonstrated, and the time went to proving the
+failure path instead.
 
-**A few smaller pieces of the diagnostic tool are also deliberately unfinished,**
-and it is worth being precise about which, because none of them affects whether
-it finds the faults:
+**A few smaller pieces of the diagnostic tool are deliberately unfinished,** and
+it is worth being precise about which, because none of them affects whether it
+finds the faults:
 
 - **Explaining a near miss.** The tool can say "this row fell to the last
   option" or "this lookup found nothing". It cannot yet say "this row was one
@@ -142,34 +172,34 @@ it finds the faults:
   question instead. That is safe — a broader question still contains the answer
   — but it means some traces do more work than strictly necessary. Three
   specific improvements are identified and not built.
-- **Reading the historical version automatically.** See the next section: the
-  retrieval half works and is tested; the recording half is one line, not yet
-  wired.
+There is nothing left on this list about reading the historical version of the
+instructions — that is now working end to end (see below).
 
 ---
 
 ## Confidence and risk
 
-**High confidence — verified by running it, on 2026-09-08:**
+**High confidence — verified by running it, on 2026-09-09:**
 
 - Everything described under "What has been built" works as documented. Every
   headline figure quoted here was reproduced exactly.
-- The results are reproducible from a clean start with five commands, and the
-  faults can be switched on and off at will.
+- 167 automated tests pass with none skipped, including both the successful
+  recovery and the deliberately-failed one.
+- The results are reproducible from a clean start, and the faults can be
+  switched on and off at will.
 
 **Resolved since the last status:**
 
-1. ~~The hardest part is still ahead.~~ **The biggest risk was retired first.**
-   Reading the version of the instructions that ran on a given day was the
-   least-proven part of the design, so it was investigated before anything was
-   built. It works, and there is a test proving the tool reads genuinely
-   historical instructions rather than today's. One caveat: the scheduler can
-   record this automatically, but only if the pipeline is served from version
-   control, which would slow daily development. The chosen compromise has the
-   pipeline record its own version instead — the reading half is built and
-   tested, the recording half is one line and not yet wired. Until it is, every
-   trace is explicitly labelled as reading today's instructions, so no report
-   can overstate what it knows.
+1. ~~The hardest part is still ahead.~~ **Retired, and now working end to
+   end.** Reading the version of the instructions that ran on a given day was
+   the least-proven part of the design, so it was investigated before anything
+   else was built. The scheduler can record this automatically, but only if the
+   pipeline is served from version control, which would have slowed daily
+   development; so the pipeline records its own version instead. Both halves are
+   now built, and a diagnosis names the exact version of the instructions that
+   produced the day's figures. When it genuinely cannot establish one it says so
+   in plain terms rather than quietly substituting today's, so no report can
+   overstate what it knows.
 2. ~~One measurement is not yet self-checking.~~ **It is now an automated
    test** — and writing it immediately found an error in the figure it was meant
    to protect. There is a 70th decision point on the path that the original
@@ -181,23 +211,33 @@ it finds the faults:
 
 **Current risks:**
 
-1. **Phase 2 is the larger half of the remaining work,** and it contains the
-   only genuinely irreversible action in the project — telling an outside party
-   that a published number was wrong. The human sign-off gate exists precisely
-   to keep that decision with a person.
-2. **Getting one check right took three attempts.** The single test that detects
-   both faults — "did a value go missing here that was present a step earlier" —
-   failed in two plausible ways before it was correct, each time confidently
-   blaming an innocent stage. It is right now, with tests pinning both faults
-   and the clean case. But it is a reminder that a diagnostic tool's failure mode
-   is a *convincing wrong answer*, which is worse than no answer, and that
-   deserves continued suspicion.
-3. **Four documentation errors were found and corrected** across this and the
-   previous review: a stale total that predated a calibration change, a
-   miscounted number of business days, a missing warning that the verification
-   harness leaves the test data in its broken state, and the missing 70th
-   decision point. All four were documentation only — no processing logic was
-   affected, and no reported figure changed.
+1. **The recurring failure mode of this project has been a convincing wrong
+   answer, not a crash** — and it has now happened four times, each caught by a
+   test rather than by review:
+   - the check that detects both faults took three attempts; the first two
+     confidently blamed an innocent stage;
+   - the recalculation, when run as parallel independent steps, rebuilt reports
+     from figures that had not been recalculated yet, reported complete success,
+     and "corrected" the number to the original wrong value;
+   - the recalculation twice started from the wrong place, missing precisely the
+     steps that needed redoing, and again reported success with a difference of
+     zero.
+
+   All four are fixed and pinned by tests. The pattern is worth stating plainly:
+   a recovery workflow that fails loudly is safe, and one that succeeds while
+   restating nothing is not. Anything added to this later deserves the same
+   suspicion.
+2. **The irreversible action is mocked, and that boundary must be respected.**
+   Approving the gate records a row; it does not contact anyone. Wiring a real
+   channel is a small change and should not be made casually — the sign-off gate
+   is what keeps that decision with a person, and it should stay in front of any
+   real integration.
+3. **Four documentation errors were found and corrected** across the reviews in
+   this project: a stale total that predated a calibration change, a miscounted
+   number of business days, a missing warning that the verification harness
+   leaves the test data in its broken state, and the missing 70th decision
+   point. All four were documentation only — no processing logic was affected,
+   and no reported figure changed.
 
 **Nothing found in this review contradicts the project's central claim.** The
 gap in existing tools is real, documented by the incumbent, and demonstrated
@@ -211,10 +251,14 @@ reproducible errors.
 | | |
 |---|---|
 | Phase 0 — test pipeline, planted faults, verification | **Complete and verified** |
-| Phase 1 — the diagnostic engine | **Built and verified** (96 automated tests) |
-| Phase 2 — the recovery workflow with human sign-off | **Not started** |
+| Phase 1 — the diagnostic engine | **Complete and verified** |
+| Phase 2 — the recovery workflow with human sign-off | **Complete and verified** |
 
-**Recommended next steps, in order:** decide whether to build the
-stage-in-isolation capability, since two of the unfinished pieces above both
-depend on it; wire the one-line version recording; then start Phase 2, leaving
-enough time for the demonstration recording.
+All three phases are built, with 167 automated tests covering them. What remains
+is presentation: the written summary and a three-minute recorded demonstration.
+
+**Recommended next steps, in order:** record the demonstration, leading with the
+deliberately-failed recovery rather than the successful one, since it is the
+clearer argument; then, if time allows, build the ability to re-run a single
+processing stage in isolation, because two of the unfinished pieces above both
+depend on it.

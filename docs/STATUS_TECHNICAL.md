@@ -1,10 +1,11 @@
 # Technical status
 
-**As of 2026-09-08 · Phase 0 complete · Phase 1 (DIAGNOSE) implemented**
+**As of 2026-09-09 · commit `75e9c6f` · all three phases complete**
 
 > Sections 1-4 describe Phase 0 and remain accurate. Section 5 is superseded:
-> the `branchlin` library is no longer a set of stubs. See section 8 and
-> docs/BUILD_LOG.md, "Phase 1".
+> the `branchlin` library is no longer a set of stubs. Section 8 covers Phase 1
+> (DIAGNOSE) and section 9 covers Phase 2 (REMEDIATE). See also
+> docs/BUILD_LOG.md.
 
 Audience: engineers picking this up, reviewing it, or building Phase 1 on it.
 Every figure below was measured by running the code, not estimated. The
@@ -327,6 +328,12 @@ Also not built:
    break ties between genuinely independent statements and do nothing else.
 3. **`astro dev pytest` cannot write its cache directory** (`Permission denied:
    /pytest-cache-files-*`). Tests pass; the warning is noise.
+3b. **`astro dev pytest` also skips 22 tests**, and this is not a defect to fix
+   but a property to know. It runs a one-off container that uses the built image
+   yet brings its own mounts, so `docker-compose.override.yml` does not apply
+   and there is no `.git`; and it has no Postgres configured, falling back to an
+   empty SQLite file. Version pinning and both orchestration paths therefore
+   only run in the scheduler container. See section 9 for the command.
 4. **Cosmetic float-sign noise in the harness headline.** A delta that is
    exactly zero to the cent prints as `-0.00` on some runs and `0.00` on others,
    because DuckDB's aggregation order is not deterministic across runs. Adding
@@ -397,18 +404,159 @@ relations walked plus `ref.fx_rates` named as the origin, and it never visits
 `ref.validity_window`, which the dependency graph would have included. It
 follows the measure, not the edges.
 
-### Caveats worth knowing before Phase 2
+### Known limits of the engine
 
 1. **CTE-level evidence is static, not measured.** A CTE is not materialised, so
    there is nothing to probe. Breaks are localised to a CTE by analysis and
    confirmed at the relation containing it. Re-executing a CTE as a standalone
-   SELECT is the obvious upgrade.
+   SELECT would fix this and was **cut from Phase 2** deliberately.
 2. **Near-miss predicate detection is not implemented.** EXPLAIN reports ELSE
    arms taken and outer joins that null-extended, both measured. "This row was
-   one day inside the window" needs (1).
-3. **A DIAGNOSE task must hold the `duckdb_writer` pool slot.** Read-only
+   one day inside the window" needs (1), and was cut with it.
+3. **Pushdown widens coarsely.** Window, aggregate and CASE selectors widen to
+   the whole relation rather than to the partition. Safe -- a too-broad selector
+   still contains the break -- but it does more work than it needs to. Cut.
+4. **A DIAGNOSE task must hold the `duckdb_writer` pool slot.** Read-only
    probes are not exempt from DuckDB's file lock -- measured, see BUILD_LOG
    "Surprise 16".
-4. **Version pinning is the hybrid, not the native mechanism.** Retrieval is
-   proved against real history; what is not yet wired is a pipeline run
-   recording its own commit. One line in a Phase 2 task.
+5. ~~**Version pinning is the hybrid, not the native mechanism.**~~ **Wired in
+   Phase 2.** Each SQL task now records its commit and a trace resolves to a
+   real sha; see section 9.
+
+---
+
+## 9. Phase 2 -- REMEDIATE and the DIAGNOSE DAG (implemented)
+
+Two DAGs and one library module, `branchlin.remediate`. 90 new tests.
+
+### Test counts, and where to run them
+
+| environment | result | why it differs |
+|---|---|---|
+| host venv | 110 passed | no Airflow: structure and orchestration tests are absent |
+| `astro dev pytest tests/` | 145 passed, 22 skipped | built image, but its own mounts and an empty SQLite DB |
+| **scheduler container** | **167 passed, 0 skipped** | the only environment with both `.git` and a migrated metadata DB |
+
+```bash
+docker exec -e PYTHONPATH=/usr/local/airflow:/usr/local/airflow/include \
+  $(docker ps --format '{{.Names}}' | grep scheduler) \
+  python -m pytest /usr/local/airflow/tests -q
+```
+
+### What was cut, deliberately
+
+CTE re-execution, the three pushdown refinements, near-miss predicate
+detection, any React or FastAPI plugin UI, and a generalised blast-radius
+recompute. The Required Actions tab is the UI. None of these affect whether the
+workflows are correct; they were scoped out to leave time for the demonstration.
+
+### DIAGNOSE
+
+`dags/diagnose.py`. Takes the four tracer inputs as params, runs an INVESTIGATE
+trace and emits the verdict to XCom and to a formatted task log. The trace task
+holds the `duckdb_writer` slot, because a read-only probe is not exempt from
+DuckDB's file lock. Triggering REMEDIATE is opt-in (`trigger_remediate`,
+default false) behind a ShortCircuitOperator on the verdict, because a
+diagnosis is read far more often than it is acted on.
+
+### REMEDIATE
+
+`dags/remediate.py`.
+
+```
+SETUP     embargo        duckdb_writer   mark affected reports not-for-publication
+TASK      blast_radius   default_pool    walk forward over the -- depends: graph
+TASK      correction     duckdb_writer   apply the operator-supplied data fix
+TASK      recompute      duckdb_writer   re-run affected relations, dependency order
+TASK      verify_report  duckdb_writer   mapped over affected reports
+TASK      measure        duckdb_writer   read the corrected figure, build evidence
+GATE      approval       default_pool    ApprovalOperator, parks in awaiting_input
+TASK      notify         duckdb_writer   MOCKED -- writes a row, sends nothing
+TEARDOWN  lift_embargo   duckdb_writer   runs on SUCCESS or FAILURE
+```
+
+Three properties the shape encodes, each with a test:
+
+* **The gate is not bypassable.** `notify.upstream_task_ids == {gate}`, so a
+  rejection skips the notification.
+* **The gate does not hold the writer slot.** It parks in `awaiting_input`
+  until a human answers, possibly for hours; holding the single DuckDB slot
+  would block the whole warehouse. It touches no warehouse, so it is on
+  `default_pool`.
+* **The teardown's rule is `ALL_DONE_SETUP_SUCCESS`**, not `ALL_DONE`. It runs
+  however the upstream finished, but only if the setup that placed the embargo
+  actually succeeded.
+
+The embargo is a control table (`meta.publication_embargo`), not a lock:
+observable with a SELECT, so "is this figure safe to publish" is answerable at
+any point, including mid-remediation and after a failure. Its read paths work
+over a read-only connection.
+
+### Two corrections found by testing, not by review
+
+**The recompute is a fold, not a map.** It was written with dynamic task mapping
+as specified. Mapped instances are not scheduled in map-index order -- one run
+began at index 7 -- so `rpt.desk_summary` was rebuilt from inputs that had not
+been rebuilt yet. Every task went green and the "corrected" figure came back as
+the original wrong number. A single pool slot serialises execution without
+ordering it. Mapping now applies only to `verify_report`, whose units genuinely
+are independent.
+
+**The recompute starts where the fix landed, not where the break was.** The
+correction writes to `raw.fx_rates`; the break is at `trd.trades_converted`,
+three relations later, with `ref.fx_rates` -- the table the broken join reads --
+upstream of the break and so in nobody's blast radius. Two green runs restated
+nothing before this surfaced. The start relation is now parsed out of the
+correction SQL with sqlglot (`correction_target`), so it cannot be configured
+wrong. For BUG A that yields 13 relations beginning at `ref.fx_rates`.
+
+### Verified end to end
+
+| step | result |
+|---|---|
+| seed BUG A, run the pipeline | `rpt.desk_summary` @ 2026-09-03 = 501,622.18 |
+| DIAGNOSE | BREAK at `trd.trades_converted`, CTE `converted`, blamed on the LEFT JOIN |
+| REMEDIATE, gate parked | evidence shows 501,622.18 -> 607,617.49, delta 105,995.31, code version `b5e8748df0c1` via `run-xcom` |
+| approve | notification recorded (MOCK), embargo lifted, run success |
+| final figure | **607,617.49** -- the healthy figure, to the cent |
+
+And the failure path (`TestFailurePath`), which matters more than the happy one:
+
+| assertion | result |
+|---|---|
+| run reported `failed` | a successful cleanup does not mask a failed remediation |
+| `lift_embargo` succeeded anyway | the teardown is why this works |
+| embargo lifted in the warehouse | not merely that the task ran |
+| gate never reached | `upstream_failed`, never `awaiting_input` |
+| nothing notified | the irreversible action did not happen |
+| state left behind is reasonable | reports hold the original figure, not a half-recomputed one |
+
+### Version pinning, wired
+
+Each SQL task records `git rev-parse HEAD` per run and `pinning` resolves it, so
+a trace now names its commit instead of admitting it does not know:
+
+```
+version_for_run('04_reporting_pipeline', '2026-09-09') -> b5e8748df0c1 / run-xcom
+```
+
+Recording lands in **XCom, not `DagRun.conf`**: on Airflow 3.3 a task cannot
+write its own run's conf -- execution goes through the API server and conf is
+trigger-time only. Two pieces of plumbing are required and easy to miss: `git`
+in `packages.txt` (the image ships none) and `docker-compose.override.yml`
+mounting `.git` read-only.
+
+### Operational notes for anyone running this
+
+1. **Approving the gate needs the API or the UI.** Writing
+   `hitl_detail.chosen_options` and flipping the task to `scheduled` looks
+   equivalent and fails: the resume path needs the `event` payload the endpoint
+   attaches, and the task dies with `execute_complete() missing 1 required
+   positional argument: 'event'`. Use
+   `PATCH /api/v2/dags/{dag}/dagRuns/{run}/taskInstances/{task}/-1/hitlDetails`.
+2. **From inside the containers the API server is `http://api-server:8080`**,
+   not the `AIRFLOW__API__BASE_URL` of `http://localhost:8080`, which is correct
+   only for a browser on the host.
+3. **The orchestration tests use the real warehouse** -- the DAG resolves it, so
+   they cannot be handed a private copy. Both restore a healthy warehouse on the
+   way out.
