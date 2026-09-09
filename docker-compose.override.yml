@@ -1,0 +1,37 @@
+# Mounts the repository's git history into the Airflow containers, read-only.
+#
+# Why this exists
+# ---------------
+# branchlin's core argument is that a diagnosis parses the SQL that *actually
+# ran* on the date under investigation, not the SQL in today's working tree.
+# Resolving that needs two things: a recorded commit per run, and the ability to
+# read the repository at that commit.
+#
+# Astro bind-mounts `include`, `tests`, `dags` and `plugins` and nothing else, so
+# the containers hold the working tree with no history behind it (see
+# docs/BUILD_LOG.md, "Surprise 13"). Without `.git`:
+#
+#   * every trace falls through to the `working-tree` resolution and is
+#     correctly, but uselessly, labelled UNPINNED; and
+#   * six pinning tests skip under `astro dev pytest`.
+#
+# Mounted `:ro` on purpose. `branchlin.pinning` reads history with `git archive`,
+# which never writes to the object database, so read-only is sufficient and the
+# mount enforces that a diagnosis cannot mutate the repository it is reading.
+#
+# Note this is *not* the same as serving DAGs from a git-backed bundle. That
+# would make Airflow the authority on code version, but a code change would not
+# be live until committed and pushed. The hybrid was chosen deliberately in
+# Phase 1; this override is what makes its cheaper half work.
+x-git-mount: &git-mount
+  - ./.git:/usr/local/airflow/.git:ro
+
+services:
+  scheduler:
+    volumes: *git-mount
+  dag-processor:
+    volumes: *git-mount
+  triggerer:
+    volumes: *git-mount
+  api-server:
+    volumes: *git-mount

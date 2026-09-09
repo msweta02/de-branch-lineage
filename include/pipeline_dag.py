@@ -50,6 +50,48 @@ MODULE_DOCS = {
 }
 
 
+
+def _record_code_version() -> str | None:
+    """Push this run's commit into XCom under ``code_version``.
+
+    **Why XCom and not DagRun.conf.** ``branchlin.pinning`` prefers, in order,
+    Airflow's own ``DagRun.bundle_version``, then a self-recorded
+    ``conf['code_version']``, then the working tree. The middle step was
+    specified as writing to the run's conf, and on Airflow 3.3 a task cannot do
+    that: task execution goes through the API server, ``conf`` is set at trigger
+    time, and the Task SDK exposes no endpoint to mutate it. Checked rather than
+    assumed -- there is no such method on the SDK's DagRun, and nothing in
+    ``airflow.sdk`` writes conf.
+
+    XCom is the per-run store that does persist, is visible in the UI next to
+    the task that wrote it, and is readable from the DIAGNOSE task. ``conf``
+    remains supported for the case it genuinely works: a human triggering a run
+    manually and supplying the version themselves.
+
+    Never fatal. A pipeline that cannot read git still has to produce its data;
+    an unrecorded version degrades a later trace to UNPINNED, which is labelled
+    honestly, rather than failing the run that had nothing to do with it.
+    """
+    try:
+        from branchlin import pinning
+
+        version = pinning.head()
+    except Exception as exc:  # no git binary, no .git mount, detached state
+        print(f"code_version unrecorded: {type(exc).__name__}: {exc}")
+        return None
+
+    try:
+        from airflow.sdk import get_current_context
+
+        get_current_context()["ti"].xcom_push(key="code_version", value=version)
+    except Exception as exc:
+        print(f"code_version {version[:12]} not pushed to XCom: {exc}")
+        return version
+
+    print(f"code_version {version[:12]} recorded for this run")
+    return version
+
+
 def _task_id(sql_path: Path) -> str:
     """`05_convert_currency.sql` -> `convert_currency`."""
     stem = sql_path.stem
@@ -89,7 +131,14 @@ def build_module_dag(module: str):
                 pool="duckdb_writer",
             )
             def run_sql(path: str = str(sql_path)):
-                """Execute one .sql file against the DuckDB warehouse."""
+                """Execute one .sql file against the DuckDB warehouse.
+
+                Also records the commit this run executed against, so that a
+                diagnosis of this date can parse the SQL that actually ran
+                rather than whatever is in the working tree today. That is the
+                whole "why an orchestrator" argument, and it costs one probe of
+                git per task.
+                """
                 import duckdb
 
                 con = duckdb.connect(str(WAREHOUSE))
@@ -99,6 +148,8 @@ def build_module_dag(module: str):
                     con.close()
                 print(f"{result['file']} -> {result['target']}: "
                       f"{result['rows']:,} rows in {result['seconds']}s")
+
+                result["code_version"] = _record_code_version()
                 return result
 
             current = run_sql()

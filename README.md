@@ -10,20 +10,70 @@ documentation states that it reflects lineage from `SELECT` statements and
 "doesn't reflect other usage like joins and filters". Both bugs planted in this
 project are a join and a filter.
 
-> **Status: Phase 0.** The pipeline, the two planted bugs and the verification
-> harness are complete and reproducible. The library itself
-> (`include/branchlin/`) is stub modules with docstrings only. See
-> [docs/BUILD_LOG.md](docs/BUILD_LOG.md).
+> **Status: Phase 1.** The pipeline, the two planted bugs and the verification
+> harness are complete and reproducible, and **DIAGNOSE is implemented** — it
+> finds both planted bugs, names the branch responsible, and stays quiet on a
+> clean warehouse. 96 tests. REMEDIATE, the human approval gate and any UI are
+> Phase 2 and are not built. See [docs/STATUS_TECHNICAL.md](docs/STATUS_TECHNICAL.md)
+> and [docs/BUILD_LOG.md](docs/BUILD_LOG.md).
 
-## What it will do
+## What it does
 
-**DIAGNOSE** — given a wrong value in a report, walk backwards through the SQL
-in DAG order. At each hop, check whether the arithmetic reconciles and show
-which branch the row took. Stop at the first hop that doesn't balance: that's
-the root cause. Everything upstream of the break is marked untrusted, because
-the trace derived it from logic that is itself broken.
+**DIAGNOSE** — given a wrong value in a report, walk backwards through the SQL.
+At each hop, check whether the output accounts for its inputs and show which
+branch the row took. Stop at the first hop that doesn't balance: that's the root
+cause. Everything upstream of the break is marked untrusted, because the trace
+derived it from logic that is itself broken.
 
-**REMEDIATE** — embargo downstream publishing, walk the asset graph to find the
+```python
+from branchlin.prober import Prober
+from branchlin.sources.rawfiles import RawFilesSource
+from branchlin.tracer import Tracer
+
+trace = Tracer(RawFilesSource(), Prober()).investigate(
+    "rpt.desk_summary", "business_date = DATE '2026-09-03'", "total_pnl_usd",
+)
+print(trace.render())
+```
+
+On the BUG A warehouse that walks ten relations and stops at the tenth — real
+output, trimmed only in width:
+
+```
+ 9. BREAK  trd.trades_converted  signed_base_amount  value=44,944,661.87  rows=2,243  nulls=410
+        02_trades/05_convert_currency.sql   step: converted
+        * ELSE 'RATE_NOT_FOUND'  --  conversion_status = 'RATE_NOT_FOUND' for 410 rows
+        * LEFT JOIN ref.fx_rates AS f ON p.currency = f.ccy AND p.trade_date = f.rate_date
+              --  outer join left 410 NULL in signed_base_amount, rows that found no match
+        BREAK: 410 NULL in signed_base_amount (18.3% of 2,243 rows) where inputs had none
+               (ref.fx_rates.rate=0/149, trd.trades_enriched.gross_amount_local=0/2,243)
+        responsible branch points:
+          [converted] LEFT JOIN ref.fx_rates AS f ON p.currency = f.ccy AND p.trade_date = f.rate_date
+ROOT CAUSE  trd.trades_converted  in CTE 'converted'  (02_trades/05_convert_currency.sql)
+UNTRUSTED   14 relation(s) upstream of the break: trd.trades_enriched, ref.fx_rates, ...
+```
+
+Note what the last two lines are doing. The break is localised to a **CTE**, not
+just to a file — `converted` is the step holding the join that failed. And the
+fourteen relations upstream are marked untrusted rather than clean: the trace
+would have had to pass through the broken join to reach any of them, so their
+evidence cannot be relied on either way.
+
+It runs in two modes. **INVESTIGATE** halts at the first break, for when a
+number is known to be wrong. **EXPLAIN** never halts: it walks to the raw
+landing tables annotating the branch each row took, for onboarding, audit, and
+"why is this trade classified as large". Same parser, same prober, same
+reconciler — only the halt condition differs.
+
+The path is **discovered, not declared.** The walk follows the measure rather
+than the `-- depends:` edges, which matters because the dependency graph offers
+five paths from `ref.fx_rates` to `rpt.desk_summary` and only one of them can
+carry the amount. `ref.validity_window` is a declared input of
+`trd.trades_converted` but joins on currency alone, so a trace of the amount
+never visits it — a graph walk would report a path two hops longer than the one
+the fault actually took.
+
+**REMEDIATE** (Phase 2, not built) — embargo downstream publishing, walk the asset graph to find the
 blast radius, recompute in dependency order, then pause at a human approval gate
 before notifying external consumers that a published figure was wrong. Teardown
 lifts the embargo whether the run succeeded or failed.
@@ -59,8 +109,16 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python include/runner.py               # run all four modules
 .venv/bin/python tests/verify_scenarios.py       # all four bug combinations
 
+.venv/bin/pip install -r requirements-dev.txt    # pytest, for the library tests
+.venv/bin/python -m pytest tests/branchlin       # the DIAGNOSE engine, 77 tests
+
 astro dev start                                  # Airflow UI
+astro dev pytest tests/                          # everything, in the image: 96
 ```
+
+The six version-pinning tests skip inside the image: Astro bind-mounts
+`include`, `tests`, `dags` and `plugins`, so the containers have the working
+tree but no git history to pin against.
 
 `verify_scenarios.py` re-seeds the warehouse in place for each scenario, so it
 leaves it in the `both` state — both bugs planted. Re-run the seed generator and
@@ -129,7 +187,17 @@ null: a null would have been rejected by the not-null check in
 **Eleven relations, ten hops, three module boundaries, and 69 reconcilable
 branch points** (50 CASE arms, 11 join conditions, 8 WHERE conjuncts) between
 the missing rate and the wrong figure, spread over 30 CTE-level steps. Counted
-with sqlglot over the causal path, not estimated.
+with sqlglot over the causal path, not estimated — and now counted by
+`branchlin.sources.SQLSource.count_branch_points`, with
+`tests/branchlin/test_parser_counts.py` asserting every figure so none of them
+can drift.
+
+Writing that test corrected one of them. There is also a `QUALIFY` on the causal
+path — `ROW_NUMBER() OVER (...) = 1` in the `official_marks` CTE of
+`03_positions/03_mark_to_market.sql` — which the original count never looked
+for. The three categories above still sum to 69; the true total is **70**. The
+tracer rediscovers this same eleven-relation path on its own, without being
+given it.
 `04_reporting/04_recon_control` — the control that exists to catch this — passes
 clean, because it reconciles trade *counts* (which tie exactly, since no row is
 lost) and reconciles amounts against a total that is itself downstream of the

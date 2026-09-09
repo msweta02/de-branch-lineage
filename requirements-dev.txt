@@ -1,0 +1,10 @@
+# Host-side test dependencies for the branchlin library.
+#
+# Not in requirements.txt because that file is installed into the Airflow
+# image, which already ships pytest. Install into the host venv with:
+#
+#     .venv/bin/pip install -r requirements-dev.txt
+#
+# The library's own runtime dependencies (duckdb, sqlglot) are in
+# requirements.txt and are already present in .venv.
+pytest==9.1.1

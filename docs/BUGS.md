@@ -47,14 +47,26 @@ WHERE conjuncts — spread over 30 CTE-level intermediate steps.
 
 These are counted with sqlglot over the eleven files on the path, not
 estimated. `ref.validity_window` is excluded: it is a side input that never
-carries `base_amount`.
+carries `base_amount`. Phase 1 confirmed that exclusion is right rather than
+convenient — the join reads `ON c.currency = w.ccy`, with no date at all, so it
+cannot transmit a per-date FX fault, and the tracer walks the same eleven
+relations without being told which they are.
 
 | granularity | distance from cause to symptom |
 |---|---:|
 | relations | 11 |
 | hops (edges) | 10 |
 | CTE-level steps | 30 |
-| branch points the reconciler will step through | 69 |
+| branch points, as originally counted | 69 |
+| branch points, including the QUALIFY the first count missed | 70 |
+
+**The correction.** `03_positions/03_mark_to_market.sql` contains a
+`QUALIFY ROW_NUMBER() OVER (...) = 1` in its `official_marks` CTE, and that file
+is on the causal path. The original sqlglot script never looked for QUALIFY, so
+the breakdown above — 50 CASE arms, 11 join conditions, 8 WHERE conjuncts — is
+correct about what it counts and one short of what there is to count. Both
+figures are now asserted by `tests/branchlin/test_parser_counts.py`, which is
+what surfaced the discrepancy in the first place.
 
 Note that the brief asked for 15+ hops. At *file* granularity the 20-file
 layout cannot deliver that on one straight line — reference feeds trades at

@@ -212,3 +212,399 @@ DuckDB writes a sibling `.wal`.
   the demo quotes before the tracer is written.
 * `astro dev pytest` cannot write its cache directory (`Permission denied:
   /pytest-cache-files-*`). Harmless -- tests pass -- but noisy.
+
+---
+
+## Phase 1 -- the DIAGNOSE engine
+
+### Settled before starting
+
+* **Granularity** (closes the §6.1 open issue). Walk at CTE granularity (30
+  steps), report at relation granularity (10 hops), quote 69 branch points as
+  the size of the search space. A user sees 10 hops and can expand any one of
+  them into its CTE steps.
+* **Ordering** (closes the §6.2 open issue). The `-- depends:` headers are the
+  single source of truth, matching `runner.py`. The docstring in
+  `sources/rawfiles.py` claiming the Airflow task/asset graph supplies ordering
+  is wrong and is to be corrected. One mechanism, not two.
+
+### Task 0 -- the version-pinning spike
+
+The core "why an orchestrator" argument is that branchlin parses the SQL that
+*actually ran* on the date under investigation, not the SQL in the working tree.
+Spiked first, because if it does not work the argument has to change.
+
+**Outcome: works, but only with a git-backed DAG bundle.** Detail below.
+
+**Finding 1 -- the local dev bundle cannot version, by design.**
+`LocalDagBundle.supports_versioning` is `False` (as is the `BaseDagBundle`
+default). Measured against the running instance, every row is unversioned:
+
+```
+dag_run.bundle_version          -> None   (all runs)
+dag_version.bundle_version      -> None   (all 8 rows, 2 versions x 4 DAGs)
+dag_bundle 'dags-folder'.version-> None
+```
+
+So on the current setup there is nothing to pin a trace to. This is not a
+misconfiguration; a folder on disk has no history to expose.
+
+**Finding 2 -- Airflow 3.3 does version DAG *structure*, and retains it.**
+`dag_version` holds one row per version per DAG and `serialized_dag` holds one
+row per `dag_version_id` -- verified, 2 versions each and 2 serialized rows
+each. `DagRun.created_dag_version_id` and `TaskInstance.dag_version_id` point
+into it. `DagRun.dag_versions` is explicit about the intent: *"when the dag is
+in a versioned bundle, we keep the dag version fixed"*. The plumbing carries
+`bundle_version` from the bundle through `_create_orm_dags` into `DagModel` and
+`DagVersion` at parse time.
+
+**Surprise 11 -- the serialized DAG does not contain the SQL, or even the path
+to it.** This looked like a free win: if the retained serialized DAG held the
+SQL, historical retrieval would need no git at all. It does not. The
+`serialized_dag` blob for `02_trades_pipeline` is 6,030 bytes and contains
+neither `CREATE OR REPLACE`, nor `LEFT JOIN`, nor
+`05_convert_currency.sql`, nor `/usr/local/airflow/include/sql`. Only the
+task_id `convert_currency` survives, and `op_kwargs` is `{}`.
+
+The reason is a detail of how the Phase 0 DAGs are written. The SQL path is a
+*Python default argument* of the decorated callable:
+
+```python
+def run_sql(path: str = str(sql_path)):
+```
+
+Default arguments are not task parameters, so nothing is serialised and nothing
+is rendered. `rendered_task_instance_fields` exists and is populated for our
+tasks (65 rows), but stores `{"op_args": [], "op_kwargs": {}}` -- empty, for the
+same reason. Had the path been passed as an `op_kwarg` it would have been
+persisted per task instance, and had the SQL *text* been passed it would have
+been persisted too. That is a real alternative mechanism, but it is capped:
+`max_num_rendered_ti_fields_per_task` defaults to 30, so only the last 30 runs
+per task survive pruning.
+
+**Surprise 12 -- the Astro image has no `git` binary.** `apache-airflow-
+providers-git` installs fine (0.4.3 on PyPI, resolves on py3.14) but imports
+GitPython, which refuses to load without a `git` executable:
+`ImportError: Bad git executable`. A git bundle therefore needs `git` in
+`packages.txt` as well as the provider in `requirements.txt` -- two files and an
+image rebuild, not one line.
+
+**Surprise 13 -- `.git` is not mounted into the containers.** Astro bind-mounts
+`include`, `tests`, `dags`, `plugins` and `airflow_settings.yaml`, and nothing
+else. The containers have the working tree but no history whatsoever. For the
+spike the history was copied in with `docker cp` (1.1 MB).
+
+**Finding 3 -- with a git bundle, version-pinned retrieval works, and our SQL
+is inside the bundle.** This was the decisive test. `include/sql/` lives outside
+`dags/`, so the concern was that a bundle scoped to the DAGs folder would not
+carry it. It does: the bundle clones the whole repository.
+
+Two commits were chosen to make the result unambiguous -- `b293ac6`, where the
+20 SQL files landed, and `48f7df8`, the scaffold commit before they existed:
+
+```
+GitDagBundle(tracking_ref='master')            -> .../spike/tracking_repo
+    get_current_version() = b5e8748df0c1a323...   include/sql: 20 files
+GitDagBundle(version='b293ac6')                -> .../spike/versions/b293ac6
+    get_current_version() = b293ac6               include/sql: 20 files  SQL present
+GitDagBundle(version='48f7df8')                -> .../spike/versions/48f7df8
+    get_current_version() = 48f7df8               include/sql:  0 files  SQL ABSENT
+```
+
+The pinned checkouts are separate directories under `versions/<sha>`, and the
+scaffold-commit checkout genuinely lacks the SQL. That is the proof the content
+is version-pinned rather than the working tree being re-read.
+
+The retrieval path for a historical run is therefore:
+
+```
+dag_run(dag_id, logical_date) -> bundle_version (commit sha)
+    -> GitDagBundle(name, tracking_ref, version=sha).path
+    -> read include/sql/**/*.sql as of that commit
+```
+
+Every link is verified except the population of `dag_run.bundle_version` by a
+real run under a git bundle, which needs the full configuration to observe.
+
+**Cost, and the reason this is a decision rather than an action.** Serving DAGs
+from a git bundle changes the development loop: Airflow would read the DAGs from
+a clone, so a code change is not live until it is committed and pushed. With 16
+days and a video still to record, that is a real cost. A lighter variant keeps
+`dags-folder` serving the DAGs and has the pipeline record `git rev-parse HEAD`
+per run, with branchlin reading SQL from a worktree at that sha -- cheaper, and
+still Airflow-scoped, but the pin is self-recorded rather than Airflow-native.
+Reported for decision; not chosen unilaterally.
+
+**Spike hygiene.** The provider was installed into the running scheduler
+container and uninstalled afterwards; the copied history and bundle clones were
+deleted. Re-verified after cleanup: 4 DAGs, 20 tasks, 0 import errors. The
+`git` binary installed via apt is still present in the running container and
+will disappear on the next container recreate; nothing in the repo was changed.
+
+Spike took well under the half-day timebox.
+
+### Task 0 outcome -- the hybrid, chosen
+
+Reported (B) and the hybrid was chosen: the pipeline keeps running from the
+local `dags-folder` bundle, so the dev loop is untouched, and
+`branchlin.pinning` resolves a code version in three steps -- Airflow's
+`DagRun.bundle_version` first, then a self-recorded `conf['code_version']`,
+then the working tree, *labelled as unpinned*. A trace never claims a
+provenance it does not have.
+
+`pinning.materialise` uses `git archive`, not `git worktree add`. Archive reads
+the object database and writes nothing to it, so a diagnosis cannot leave a
+worktree, a lock or a detached HEAD behind in the repository it is
+investigating. There is a test asserting `git status --porcelain` is
+byte-identical before and after a pinned read.
+
+### Tasks 1-7 -- the DIAGNOSE engine
+
+Seven modules, ~1,900 lines, and 77 tests. `branchlin.sources.dbt` is still a
+stub, by decision.
+
+The engine finds both planted bugs, names the branch responsible, and stays
+quiet on a clean warehouse:
+
+| scenario | date | traced column | result |
+|---|---|---|---|
+| bug_a | 2026-09-03 | `total_pnl_usd` | BREAK `trd.trades_converted`, CTE `converted`, blamed on `LEFT JOIN ref.fx_rates ON currency, trade_date` |
+| bug_a | 2026-08-31 | `accrued_interest_usd` | no break |
+| bug_b | 2026-08-31 | `accrued_interest_usd` | BREAK `pos.positions_accrued`, CTE `accrued`, blamed on the `accrual_basis` WHERE conjuncts |
+| bug_b | 2026-09-03 | `total_pnl_usd` | no break |
+| healthy | either | either | no break, 15 relations to source |
+
+The date-specificity falls out of the mechanism rather than being coded: the
+same trace on the other date balances, matching the Phase 0 delta table where
+each bug moves exactly one of the two dates.
+
+**Surprise 14 -- the documented "69 branch points" was missing a QUALIFY.**
+Landing the counter as library code with a test immediately contradicted the
+figure it was supposed to protect. `03_positions/03_mark_to_market.sql` has a
+`QUALIFY ROW_NUMBER() OVER (...) = 1` inside its `official_marks` CTE, and that
+file *is* on the causal path. The Phase 0 throwaway script never looked for
+QUALIFY, so the published breakdown (50 CASE arms + 11 join conditions + 8
+WHERE conjuncts = 69) silently excluded it. The true total on the causal path
+is **70**.
+
+Rather than quietly restate the headline, `parser.DOCUMENTED_KINDS` names the
+three categories the docs enumerate, and the test pins both numbers: the
+documented 69 *and* `qualify == 1`, `total == 70`. The figure in the README is
+not wrong about what it counts; it was wrong about what there was to count.
+
+**Surprise 15 -- sqlglot 30 renamed a Select arg and `args.get` returns None
+for the old name.** Step dependencies came back empty for every FROM clause
+while joins resolved fine. The key is `from_`, not `from`; `args.get("from")`
+does not raise, it returns None, so the parser produced a confidently empty
+answer. A dict-backed AST has no schema, and a renamed key is indistinguishable
+from an absent one.
+
+**Surprise 16 -- a read-only probe still needs the writer pool.** Phase 0
+serialises writes through a one-slot pool because DuckDB permits a single
+writer, and the obvious assumption is that read-only probes are exempt. The
+brief said to verify rather than assume, and the assumption is false: DuckDB
+locks the *file*, so `duckdb.connect(path, read_only=True)` opened while a
+writer holds it fails with `Could not set lock on file ... Conflicting lock is
+held`. A DIAGNOSE task must take the same `duckdb_writer` slot as a pipeline
+task. `prober.REQUIRES_WRITER_POOL` records the finding in code so the Phase 2
+DAG cannot forget it, and a test reproduces the refusal.
+
+**Surprise 17 -- the granularity decision is only half implementable.** The
+brief settled on walking at CTE granularity and reporting at relation
+granularity, which is the right split. But a CTE is not materialised: there is
+no table to probe. So the walk reasons about CTE steps *statically* -- which
+step computes the column, which branch points sit in it, which of them can
+null-extend -- and gathers *evidence* only at relation boundaries. A break is
+localised to a CTE by analysis and confirmed by measurement at the relation
+containing it. That is enough to name the `accrual_basis` WHERE, but it is not
+the same as measuring inside the CTE, and the difference should be stated
+plainly rather than papered over. Measuring inside a CTE would mean
+re-executing it as a standalone SELECT -- possible, since the statement is
+already parsed, and the obvious Phase 2 upgrade.
+
+**Surprise 18 -- keying probe results by relation silently dropped columns, and
+produced a confident false BREAK.** `pos.positions_adjusted` computes
+`net_amount_usd` from a CASE over *two* columns of the same input:
+`book_positions.net_amount_usd` and `book_positions.net_quantity`. The inputs
+dict was keyed by relation, so the second overwrote the first, the null-bearing
+column vanished from the evidence, and the hop was reported as the root cause of
+BUG A -- four hops early, with a plausible-looking explanation. Keyed by
+`(relation, column)` now. A false positive with a good story attached is worse
+than a crash.
+
+**Surprise 19 -- "were NULLs introduced here" took three attempts, and the two
+failures were both plausible.** This is the check that finds both bugs, so
+getting it wrong meant getting everything wrong.
+
+1. *Presence.* If any input carries a NULL, the output's NULLs are inherited.
+   Fails on BUG B: `ref.calendar.day_count_from_prev` is NULL at the window
+   boundary (a LAG with nothing before it), which "explained" 678 NULLs with
+   one, and the guilty hop was exonerated. The trace sailed past it and blamed
+   `ref.calendar`.
+2. *Counts.* Require the output's NULL count to exceed its inputs'. Fails on
+   BUG A: `03_positions/05_net_by_counterparty` expands 14,727 rows into 19,779
+   and multiplies existing NULLs along with them, so the count rises with
+   nothing wrong. It blamed the netting hop.
+3. *Rates.* Compare NULL fractions instead. Fails on BUG A for a subtler
+   reason: the expansion is not uniform. Null-bearing rows there have more
+   counterparties, so the null fraction legitimately climbs from 14.2% to 22.0%.
+   Blamed the netting hop again.
+
+Any row-multiplying hop defeats (2) and (3) in both directions. What finally
+worked was (1) *plus* the missing piece: a column consumed under `COALESCE`
+cannot transmit a NULL however many it holds, so it must not count as an
+explanation. With COALESCE-wrapped inputs excluded, presence is correct for
+both bugs. The rate comparison survives as a non-fatal warning, because "more
+NULLs than the inputs carry" is worth telling a human even when it is
+legitimate.
+
+**Surprise 20 -- the dependency graph offers five paths and only one carries the
+fault.** `ref.fx_rates` reaches `rpt.desk_summary` five ways, and the longest
+(12 relations, via `ref.validity_window`) is not the documented causal path (11).
+`trd.trades_converted` really does declare `ref.validity_window` as an input, so
+a graph walk visits it -- but it joins `ON c.currency = w.ccy`, with no date, and
+contributes `coverage_status` rather than the amount. It cannot transmit a
+per-date FX fault, and Phase 0 confirms it holds 5 identical rows under BUG A.
+
+So the tracer follows the *measure* rather than the edges, and rediscovers the
+documented 11-relation path without being told it. This is the clearest
+statement of why branch lineage beats a dependency graph: the graph shows what
+*could* have carried the fault, which here is wrong by one relation and two
+hops. There is a test asserting the trace never visits `ref.validity_window`.
+
+Choosing which input to follow needed care of its own.
+`SUM(mtm_pnl_usd * cp_weight)` draws on the weight's whole lineage as well as
+the amount's, and the weight carried *more* NULLs than the amount did --
+following the larger null count skipped four relations and reported a path the
+money never took. Continuity of the measure (an input column of the same name)
+beats volume of nulls; only when the measure is renamed does the walk fall back
+to the step's FROM lineage.
+
+**What the engine does not do.** Near-miss predicate detection -- "this row was
+one day inside the window" -- is specified for EXPLAIN and is not implemented.
+It needs CTE-level re-execution (see Surprise 17), and guessing at it from
+relation-level evidence would be dishonest. EXPLAIN's default view is the
+branches where the row took a non-obvious path: an ELSE arm taken, or an outer
+join that null-extended. Both are measured, not inferred.
+
+### Still open after Phase 1
+
+Ordered by what unblocks the most.
+
+1. **Re-executing a single CTE as a standalone SELECT.** Two deferred features
+   both depend on it, so it is one decision rather than two: near-miss predicate
+   reporting in EXPLAIN ("this row was one day inside the window"), and
+   measuring inside a CTE rather than reasoning about it statically
+   (Surprise 17). The statement is already parsed, so extracting a CTE and
+   running it read-only is mechanically straightforward; the cost is a query per
+   expansion, which is why it should be on demand rather than on every hop.
+2. **Three pushdown refinements.** All three currently widen to the whole
+   relation, which is safe but coarse:
+   * a **window** selector should widen to the window's `PARTITION BY` keys, not
+     to everything -- only rows in the same partition participated.
+   * a **non-equi join** could be re-executed rather than widened away.
+   * a **QUALIFY** dedupe should return all candidate rows and mark which
+     survived, rather than dropping the predicate.
+   These are precision improvements, not correctness fixes. A too-broad selector
+   still contains the break, so no trace is wrong without them -- but a
+   window-heavy pipeline will do more work than it needs to.
+3. **Wiring the recording half of the hybrid.** `branchlin.pinning` resolves and
+   retrieves a version; nothing yet writes `conf['code_version']`, so every
+   trace today resolves to `working-tree` and says so. One line in a task, but
+   it needs `.git` visible inside the containers -- Astro mounts `include`,
+   `tests`, `dags` and `plugins` only (Surprise 13), which is also why six
+   pinning tests skip under `astro dev pytest`. A `docker-compose.override.yml`
+   mounting `.git` read-only fixes both at once.
+4. **`astro dev pytest` still cannot write its cache directory.** Unchanged from
+   Phase 0. Harmless, still noisy.
+
+---
+
+## Phase 2 -- REMEDIATE and the DIAGNOSE DAG
+
+Scope was cut deliberately before starting: no CTE re-execution, no pushdown
+refinements, no near-miss detection, no plugin UI, no generalised blast-radius
+recompute. The Required Actions tab is the UI. Recorded here because a reader
+should know what was decided against, not just what was built.
+
+### Task 1 -- wiring the version pinning
+
+Phase 1 left the retrieval half of the hybrid working and the recording half
+unwired, so every trace resolved to `working-tree` and said so. Closing that gap
+took four findings, none of them the "one line" it was scoped as.
+
+**Surprise 21 -- a task cannot write its own run's `conf` on Airflow 3.3.** The
+plan was for each pipeline task to record `git rev-parse HEAD` into
+`DagRun.conf['code_version']`. It cannot: task execution goes through the API
+server, `conf` is set at trigger time, and the Task SDK exposes no endpoint to
+mutate it -- there is no such method on the SDK's DagRun and nothing in
+`airflow.sdk` writes conf. Checked before substituting rather than after.
+
+The recording therefore lands in **XCom** under the same key. XCom is the
+per-run store that does persist, it is visible in the UI next to the task that
+wrote it, and it is readable from the DIAGNOSE task. `conf` support is kept for
+the case where it genuinely works: a human triggering a run and supplying the
+version themselves. `pinning` now resolves in four steps rather than three:
+`bundle_version`, then `conf`, then XCom, then the working tree.
+
+**Surprise 22 -- `logical_date` is NULL for exactly the runs this pipeline
+uses.** With the XComs written and visible (20 of them, all four DAGs), the
+resolver still returned `working-tree`. On Airflow 3 `logical_date` is nullable
+and only *scheduled* runs carry one; asset-triggered and manual runs have NULL.
+This pipeline runs almost entirely by asset cascade, so a date-based run lookup
+matched nothing -- silently, because the whole resolver was wrapped in a broad
+`except Exception: return None, WORKING_TREE`. The fallback was honest about the
+outcome and hid the cause completely, which is the worst combination.
+
+The lookup now tries `logical_date`, then `run_after`, then `start_date`, then
+the most recent successful run -- and that last case is labelled
+`run-xcom (latest run, not date-matched)`, because "the code the latest run
+used" is a weaker claim than "the code that ran on 2026-09-03" and should not be
+allowed to impersonate it. `version_for_run` also takes an optional `trace` list
+that records what was tried, so the next silent failure is one argument away
+from being visible.
+
+**Surprise 23 -- `astro dev pytest` does not apply
+`docker-compose.override.yml`.** The override mounts `.git` into the four
+Airflow services, which was supposed to un-skip the six pinning tests. It did
+not: `astro dev pytest` uses the built *image* (so the `git` binary from
+`packages.txt` is present) but brings its own mounts, and `.git` is absent.
+Diagnosed by making a probe test assert its own environment --
+`{'dot_git_exists': False, 'git_binary': '/usr/bin/git', 'git_available': False}`.
+
+So the six tests still skip under `astro dev pytest`, correctly, and they *run*
+under the scheduler container, which does have the mount:
+
+```bash
+docker exec -e PYTHONPATH=/usr/local/airflow:/usr/local/airflow/include \
+  <scheduler> python -m pytest /usr/local/airflow/tests/branchlin -q
+# 77 passed
+```
+
+**Two smaller traps on the way.** `branchlin` was not importable from a task:
+Airflow puts `/usr/local/airflow` on `sys.path`, which is why the DAG files can
+`from include.runner import ...`, but the library's modules import each other
+absolutely, so it has to be reachable as `branchlin` itself. Fixed with
+`ENV PYTHONPATH` in the Dockerfile rather than in `.env`, because `.env` is
+gitignored and a setting the pipeline depends on has to travel with the repo.
+
+And git refused to read the mounted repository at all --
+`fatal: detected dubious ownership` -- because the containers run as uid 50000
+and the bind-mounted repo is owned by uid 1000. Same root cause as Surprise 10,
+different symptom. Fixed with a per-invocation `-c safe.directory=<repo>` inside
+`pinning`, which is scoped to one subprocess and names one exact path rather
+than putting `*` in global config. The project's own test for "reading history
+does not mutate the repository" had made the same assumption and had to be
+routed through the same helper.
+
+**Verified.** After a full asset cascade:
+
+```
+version_for_run('04_reporting_pipeline', '2026-09-09')
+  -> b5e8748df0c1 / run-xcom
+  trace: ['matched on run_after 2026-09-09',
+          "XCom 'code_version' on asset_triggered__2026-09-09T02:54:47..."]
+```
+
+A trace now names the commit its SQL came from instead of admitting it does not
+know.
