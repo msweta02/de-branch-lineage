@@ -1,9 +1,10 @@
 """The branch-point counter, pinned to the figures the project quotes.
 
 Every number in this file appears in the README or in
-docs/STATUS_TECHNICAL.md section 3.6. Until Phase 1 they were produced by a
-throwaway sqlglot script, which meant they could drift out of date silently as
-the pipeline changed. This test is how they stop drifting.
+docs/technical-reference.md, "Branch points on the BUG A path". Until Phase 1
+they were produced by a throwaway sqlglot script, which meant they could drift
+out of date silently as the pipeline changed. This test is how they stop
+drifting.
 
 Two paths matter and they are not the same length:
 
@@ -29,7 +30,7 @@ import pytest
 from branchlin import parser
 from branchlin.sources.rawfiles import RawFilesSource
 
-# The causal path for BUG A, as documented in STATUS_TECHNICAL section 3.3.
+# The causal path for BUG A, as documented in docs/planted-bugs.md.
 # Written out rather than derived from the graph, because "which path carries
 # the fault" is a question about a column, not about the dependency edges --
 # test_tracer.py asserts the tracer rediscovers exactly this list.
@@ -47,7 +48,8 @@ CAUSAL_PATH = (
     "rpt.desk_summary",
 )
 
-# Documented figures, STATUS_TECHNICAL section 3.6.
+# Documented figures: docs/technical-reference.md, "Branch points on the BUG A
+# path".
 DOC_RELATIONS = 11
 DOC_EDGES = 10
 DOC_CTE_STEPS = 30

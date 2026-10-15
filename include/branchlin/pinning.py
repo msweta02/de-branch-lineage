@@ -4,7 +4,7 @@ A trace is only honest if it parses the SQL that *actually ran* on the date in
 question. A pipeline fixed last week must still be diagnosable as it behaved
 last month, and today's working tree cannot answer that.
 
-**The hybrid approach** (chosen after the Task 0 spike; see docs/BUILD_LOG.md,
+**The hybrid approach** (chosen after the Task 0 spike; see docs/build-log.md,
 Phase 1 "Task 0"). Airflow 3.3 can do this natively: a git-backed DAG bundle
 records a commit SHA on every DagRun, and instantiating the bundle at that SHA
 materialises the repository as it was. The spike proved retrieval works and

@@ -13,7 +13,7 @@ happens to execute them in.
 
 (An earlier draft of this docstring claimed ordering came from the Airflow task
 and asset graph. It does not. Two mechanisms describing the same graph is a
-mechanism that will eventually disagree with itself; see docs/BUILD_LOG.md,
+mechanism that will eventually disagree with itself; see docs/build-log.md,
 Phase 1 "Settled before starting".)
 
 The root is a parameter rather than a constant so the tracer can point this at

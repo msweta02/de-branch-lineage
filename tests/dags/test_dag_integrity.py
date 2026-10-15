@@ -84,7 +84,7 @@ def test_dag_files_survive_airflow_safe_mode_discovery(path):
 
     A DAG file that imports its DAG from a helper module and never says
     "airflow" is skipped silently -- no error, no warning, no DAG. This cost
-    real time in Phase 0; see docs/BUILD_LOG.md, Surprise 7.
+    real time in Phase 0; see docs/build-log.md, Surprise 7.
     """
     content = path.read_text().lower()
     assert "dag" in content

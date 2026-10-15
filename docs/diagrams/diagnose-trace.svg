@@ -1,0 +1,210 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1040" width="1600" height="1040" font-family="Inter, 'Ubuntu Sans', 'DejaVu Sans', sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <filter id="shadow" x="-5%" y="-10%" width="110%" height="130%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      text { white-space: pre; }
+      .mono { font-family: 'JetBrains Mono', 'Ubuntu Mono', 'DejaVu Sans Mono', monospace; }
+      .title { font-size: 30px; font-weight: 700; fill: #0f172a; }
+      .sub { font-size: 15px; fill: #475569; }
+      .colh { font-size: 11.5px; font-weight: 700; letter-spacing: 1.2px; fill: #64748b; }
+      .rel { font-size: 14px; font-weight: 700; fill: #0f172a; }
+      .cell { font-size: 13px; fill: #334155; }
+      .num { font-size: 13.5px; fill: #0f172a; }
+      .idx { font-size: 13px; font-weight: 700; fill: #ffffff; }
+      .badge { font-size: 11.5px; font-weight: 700; letter-spacing: 0.8px; }
+      .h { font-size: 17px; font-weight: 700; fill: #0f172a; }
+      .lab { font-size: 12px; font-weight: 700; letter-spacing: 1.6px; }
+      .note { font-size: 13px; fill: #334155; }
+      .code { font-size: 13px; fill: #1e293b; }
+      .small { font-size: 12px; fill: #475569; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1040" fill="#ffffff"/>
+
+  <text x="40" y="70" class="title">How DIAGNOSE finds BUG A</text>
+  <text x="40" y="102" class="sub"><tspan class="mono" fill="#0f172a">rpt.desk_summary.total_pnl_usd</tspan> for 2026-09-03 reads <tspan font-weight="700" fill="#b91c1c">501,622.18</tspan> instead of <tspan font-weight="700" fill="#15803d">607,617.49</tspan>.</text>
+  <text x="40" y="124" class="sub">DIAGNOSE starts at the report and walks upstream one hop at a time, following the measure rather than the dependency graph.</text>
+
+  <!-- column headers -->
+  <text x="128" y="170" class="colh">RELATION</text>
+  <text x="420" y="170" class="colh">MEASURE FOLLOWED</text>
+  <text x="730" y="170" class="colh" text-anchor="end">VALUE</text>
+  <text x="820" y="170" class="colh" text-anchor="end">NULLS</text>
+  <text x="850" y="170" class="colh">VERDICT</text>
+
+  <!-- walk direction -->
+  <line x1="52" y1="186" x2="52" y2="876" stroke="#cbd5e1" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="38" y="530" class="colh" transform="rotate(-90 38 530)" text-anchor="middle">WALK UPSTREAM</text>
+
+  <!-- rows: y0 = 182 + 58*i, card height 50 -->
+  <g filter="url(#shadow)">
+    <rect x="76" y="182" width="900" height="50" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="76" y="240" width="900" height="50" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="76" y="298" width="900" height="50" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="76" y="356" width="900" height="50" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="76" y="414" width="900" height="50" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="76" y="472" width="900" height="50" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="76" y="530" width="900" height="50" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="76" y="588" width="900" height="50" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="76" y="646" width="900" height="50" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="76" y="704" width="900" height="50" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  </g>
+
+  <!-- index dots: module colours rpt=violet, pos=blue, trd=amber -->
+  <g>
+    <circle cx="102" cy="207" r="13" fill="#7c3aed"/><text x="102" y="212" class="idx" text-anchor="middle">0</text>
+    <circle cx="102" cy="265" r="13" fill="#7c3aed"/><text x="102" y="270" class="idx" text-anchor="middle">1</text>
+    <circle cx="102" cy="323" r="13" fill="#7c3aed"/><text x="102" y="328" class="idx" text-anchor="middle">2</text>
+    <circle cx="102" cy="381" r="13" fill="#2563eb"/><text x="102" y="386" class="idx" text-anchor="middle">3</text>
+    <circle cx="102" cy="439" r="13" fill="#2563eb"/><text x="102" y="444" class="idx" text-anchor="middle">4</text>
+    <circle cx="102" cy="497" r="13" fill="#2563eb"/><text x="102" y="502" class="idx" text-anchor="middle">5</text>
+    <circle cx="102" cy="555" r="13" fill="#2563eb"/><text x="102" y="560" class="idx" text-anchor="middle">6</text>
+    <circle cx="102" cy="613" r="13" fill="#2563eb"/><text x="102" y="618" class="idx" text-anchor="middle">7</text>
+    <circle cx="102" cy="671" r="13" fill="#d97706"/><text x="102" y="676" class="idx" text-anchor="middle">8</text>
+    <circle cx="102" cy="729" r="13" fill="#dc2626"/><text x="102" y="734" class="idx" text-anchor="middle">9</text>
+  </g>
+
+  <g class="mono">
+    <text x="128" y="212" class="rel mono">rpt.desk_summary</text>
+    <text x="128" y="270" class="rel mono">rpt.regulatory_extract</text>
+    <text x="128" y="328" class="rel mono">rpt.pnl_daily</text>
+    <text x="128" y="386" class="rel mono">pos.positions_netted</text>
+    <text x="128" y="444" class="rel mono">pos.positions_accrued</text>
+    <text x="128" y="502" class="rel mono">pos.positions_marked</text>
+    <text x="128" y="560" class="rel mono">pos.positions_adjusted</text>
+    <text x="128" y="618" class="rel mono">pos.book_positions</text>
+    <text x="128" y="676" class="rel mono">trd.trades_classified</text>
+    <text x="128" y="734" class="rel mono" fill="#b91c1c">trd.trades_converted</text>
+
+    <text x="420" y="212" class="cell mono">total_pnl_usd</text>
+    <text x="420" y="270" class="cell mono">total_pnl_usd</text>
+    <text x="420" y="328" class="cell mono">total_pnl_usd</text>
+    <text x="420" y="386" class="cell mono">mtm_pnl_usd</text>
+    <text x="420" y="444" class="cell mono">mtm_pnl_usd</text>
+    <text x="420" y="502" class="cell mono">mtm_pnl_usd</text>
+    <text x="420" y="560" class="cell mono">net_amount_usd</text>
+    <text x="420" y="618" class="cell mono">net_amount_usd</text>
+    <text x="420" y="676" class="cell mono">signed_base_amount</text>
+    <text x="420" y="734" class="cell mono">signed_base_amount</text>
+
+    <text x="730" y="212" class="num mono" text-anchor="end">501,622.18</text>
+    <text x="730" y="270" class="num mono" text-anchor="end">501,622.18</text>
+    <text x="730" y="328" class="num mono" text-anchor="end">501,622.18</text>
+    <text x="730" y="386" class="num mono" text-anchor="end">497,672.10</text>
+    <text x="730" y="444" class="num mono" text-anchor="end">497,672.10</text>
+    <text x="730" y="502" class="num mono" text-anchor="end">497,672.10</text>
+    <text x="730" y="560" class="num mono" text-anchor="end">44,944,661.87</text>
+    <text x="730" y="618" class="num mono" text-anchor="end">44,944,661.87</text>
+    <text x="730" y="676" class="num mono" text-anchor="end">44,944,661.87</text>
+    <text x="730" y="734" class="num mono" text-anchor="end">44,944,661.87</text>
+
+    <text x="820" y="212" class="num mono" text-anchor="end">0</text>
+    <text x="820" y="270" class="num mono" text-anchor="end">0</text>
+    <text x="820" y="328" class="num mono" text-anchor="end">0</text>
+    <text x="820" y="386" class="num mono" text-anchor="end">197</text>
+    <text x="820" y="444" class="num mono" text-anchor="end">96</text>
+    <text x="820" y="502" class="num mono" text-anchor="end">96</text>
+    <text x="820" y="560" class="num mono" text-anchor="end">96</text>
+    <text x="820" y="618" class="num mono" text-anchor="end">96</text>
+    <text x="820" y="676" class="num mono" text-anchor="end">410</text>
+    <text x="820" y="734" class="num mono" text-anchor="end" fill="#b91c1c" font-weight="700">410</text>
+  </g>
+
+  <!-- verdict badges -->
+  <g>
+    <rect x="850" y="195" width="108" height="24" rx="12" fill="#dcfce7"/><text x="904" y="211" class="badge" fill="#15803d" text-anchor="middle">BALANCED</text>
+    <rect x="850" y="253" width="108" height="24" rx="12" fill="#dcfce7"/><text x="904" y="269" class="badge" fill="#15803d" text-anchor="middle">BALANCED</text>
+    <rect x="850" y="311" width="108" height="24" rx="12" fill="#dcfce7"/><text x="904" y="327" class="badge" fill="#15803d" text-anchor="middle">BALANCED</text>
+    <rect x="850" y="369" width="108" height="24" rx="12" fill="#fef3c7"/><text x="904" y="385" class="badge" fill="#b45309" text-anchor="middle">APPROXIMATE</text>
+    <rect x="850" y="427" width="108" height="24" rx="12" fill="#dcfce7"/><text x="904" y="443" class="badge" fill="#15803d" text-anchor="middle">BALANCED</text>
+    <rect x="850" y="485" width="108" height="24" rx="12" fill="#fef3c7"/><text x="904" y="501" class="badge" fill="#b45309" text-anchor="middle">APPROXIMATE</text>
+    <rect x="850" y="543" width="108" height="24" rx="12" fill="#fef3c7"/><text x="904" y="559" class="badge" fill="#b45309" text-anchor="middle">APPROXIMATE</text>
+    <rect x="850" y="601" width="108" height="24" rx="12" fill="#dcfce7"/><text x="904" y="617" class="badge" fill="#15803d" text-anchor="middle">BALANCED</text>
+    <rect x="850" y="659" width="108" height="24" rx="12" fill="#dcfce7"/><text x="904" y="675" class="badge" fill="#15803d" text-anchor="middle">BALANCED</text>
+    <rect x="850" y="717" width="108" height="24" rx="12" fill="#dc2626"/><text x="904" y="733" class="badge" fill="#ffffff" text-anchor="middle">BREAK</text>
+  </g>
+
+  <!-- untrusted -->
+  <rect x="76" y="772" width="900" height="104" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-dasharray="5 4"/>
+  <text x="96" y="798" class="lab" fill="#64748b">UNTRUSTED · 14 RELATIONS UPSTREAM OF THE BREAK</text>
+  <g class="mono" font-size="12.5">
+    <rect x="96"  y="812" width="170" height="26" rx="13" fill="#e2e8f0"/><text x="181" y="829" text-anchor="middle" fill="#475569">trd.trades_enriched</text>
+    <rect x="276" y="812" width="120" height="26" rx="13" fill="#e2e8f0"/><text x="336" y="829" text-anchor="middle" fill="#475569">ref.fx_rates</text>
+    <rect x="406" y="812" width="180" height="26" rx="13" fill="#e2e8f0"/><text x="496" y="829" text-anchor="middle" fill="#475569">ref.validity_window</text>
+    <rect x="596" y="812" width="170" height="26" rx="13" fill="#e2e8f0"/><text x="681" y="829" text-anchor="middle" fill="#475569">trd.trades_amended</text>
+    <rect x="776" y="812" width="180" height="26" rx="13" fill="#e2e8f0"/><text x="866" y="829" text-anchor="middle" fill="#475569">ref.book_hierarchy</text>
+  </g>
+  <text x="96" y="862" class="small">… and 9 more. Not proven wrong: the trace could only reach them through the broken join, so their evidence cannot be relied on.</text>
+
+  <!-- ============ right: root cause ============ -->
+  <g filter="url(#shadow)">
+    <rect x="1020" y="150" width="540" height="470" rx="14" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  </g>
+  <text x="1044" y="182" class="lab" fill="#b91c1c">ROOT CAUSE</text>
+  <text x="1044" y="212" class="h mono" font-size="19">trd.trades_converted</text>
+  <text x="1044" y="236" class="note">CTE <tspan class="mono" font-weight="700">converted</tspan> in <tspan class="mono">02_trades/05_convert_currency.sql</tspan></text>
+
+  <rect x="1044" y="254" width="492" height="196" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <g class="mono">
+    <text x="1062" y="280" class="code" fill="#7c3aed">converted AS (</text>
+    <text x="1062" y="300" class="code">  SELECT p.*,</text>
+    <text x="1062" y="320" class="code">    p.signed_amount_local * f.rate</text>
+    <text x="1062" y="340" class="code">      AS signed_base_amount</text>
+    <text x="1062" y="360" class="code">  FROM priced p</text>
+    <rect x="1056" y="368" width="468" height="62" rx="6" fill="#fee2e2"/>
+    <text x="1062" y="386" class="code" font-weight="700" fill="#b91c1c">  LEFT JOIN ref.fx_rates f</text>
+    <text x="1062" y="404" class="code" fill="#b91c1c">    ON p.currency   = f.ccy</text>
+    <text x="1062" y="422" class="code" fill="#b91c1c">   AND p.trade_date = f.rate_date</text>
+    <text x="1062" y="444" class="code" fill="#7c3aed">)</text>
+  </g>
+
+  <text x="1044" y="482" class="lab" fill="#64748b">EVIDENCE</text>
+  <text x="1044" y="506" class="note"><tspan font-weight="700">410 NULLs</tspan> appear in <tspan class="mono">signed_base_amount</tspan> (18.3% of</text>
+  <text x="1044" y="525" class="note">2,243 rows) where the inputs had none:</text>
+  <text x="1060" y="549" class="note mono" font-size="12.5">ref.fx_rates.rate                       0 / 149</text>
+  <text x="1060" y="569" class="note mono" font-size="12.5">trd.trades_enriched.gross_amount_local  0 / 2,243</text>
+  <text x="1044" y="597" class="note">410 GBP trades found no rate for 2026-09-03.</text>
+
+  <!-- ============ right: why nothing else caught it ============ -->
+  <g filter="url(#shadow)">
+    <rect x="1020" y="644" width="540" height="232" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+  </g>
+  <text x="1044" y="676" class="lab" fill="#334155">WHY NOTHING ELSE CAUGHT IT</text>
+  <g class="note">
+    <circle cx="1050" cy="699" r="3" fill="#64748b"/>
+    <text x="1062" y="704">Row counts are identical at every hop: the LEFT JOIN</text>
+    <text x="1062" y="722">keeps the trade and only loses its value.</text>
+    <circle cx="1050" cy="747" r="3" fill="#64748b"/>
+    <text x="1062" y="752">The FX coverage control checks the first and last date</text>
+    <text x="1062" y="770">only, so a gap in the middle passes as FULL_SPAN.</text>
+    <circle cx="1050" cy="795" r="3" fill="#64748b"/>
+    <text x="1062" y="800">The recon control ties trade counts, and totals that</text>
+    <text x="1062" y="818">are themselves downstream of the break.</text>
+    <circle cx="1050" cy="843" r="3" fill="#64748b"/>
+    <text x="1062" y="848">By the report, SUM() has dropped the NULLs: no null,</text>
+    <text x="1062" y="866">no warning, no missing row.</text>
+  </g>
+
+  <!-- ============ legend ============ -->
+  <line x1="40" y1="910" x2="1560" y2="910" stroke="#e2e8f0"/>
+  <g>
+    <rect x="40" y="932" width="108" height="24" rx="12" fill="#dcfce7"/><text x="94" y="948" class="badge" fill="#15803d" text-anchor="middle">BALANCED</text>
+    <text x="160" y="949" class="small">the hop's output accounts for its inputs</text>
+    <rect x="450" y="932" width="108" height="24" rx="12" fill="#fef3c7"/><text x="504" y="948" class="badge" fill="#b45309" text-anchor="middle">APPROXIMATE</text>
+    <text x="570" y="949" class="small">balances, but the selector had to be widened to reach it</text>
+    <rect x="950" y="932" width="108" height="24" rx="12" fill="#dc2626"/><text x="1004" y="948" class="badge" fill="#ffffff" text-anchor="middle">BREAK</text>
+    <text x="1070" y="949" class="small">first hop that does not balance: the root cause</text>
+  </g>
+  <g class="small">
+    <circle cx="48" cy="990" r="7" fill="#7c3aed"/><text x="62" y="995">04_reporting</text>
+    <circle cx="168" cy="990" r="7" fill="#2563eb"/><text x="182" y="995">03_positions</text>
+    <circle cx="288" cy="990" r="7" fill="#d97706"/><text x="302" y="995">02_trades</text>
+    <text x="400" y="995">NULLs at hops 3–8 were inherited from upstream; hop 9 is where they first appear with none in its inputs.</text>
+  </g>
+</svg>

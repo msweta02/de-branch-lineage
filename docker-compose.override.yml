@@ -9,7 +9,7 @@
 #
 # Astro bind-mounts `include`, `tests`, `dags` and `plugins` and nothing else, so
 # the containers hold the working tree with no history behind it (see
-# docs/BUILD_LOG.md, "Surprise 13"). Without `.git`:
+# docs/build-log.md, "Surprise 13"). Without `.git`:
 #
 #   * every trace falls through to the `working-tree` resolution and is
 #     correctly, but uselessly, labelled UNPINNED; and

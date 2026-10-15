@@ -1,7 +1,20 @@
 # Build log
 
-Running record of what worked, what didn't, and where a version surprised us.
-Kept for the README's "what was hard" section.
+The engineering journal for de-branch-lineage: what worked, what didn't, and
+where a version surprised us. It is kept as written during the build, so it
+reads chronologically, and it refers to the three phases the work was done in:
+
+| Phase | What it built |
+|---|---|
+| 0 | the environment, the pipeline, the two planted bugs and the verification harness |
+| 1 | the DIAGNOSE engine (the `branchlin` library) |
+| 2 | the DIAGNOSE and REMEDIATE DAGs, and version pinning wired end to end |
+
+Code comments across the repository cite entries here by number ("Surprise
+16"). For the current state of the system, read
+[architecture.md](architecture.md) and
+[technical-reference.md](technical-reference.md). Status statements below
+describe the project as it was at the time of writing.
 
 ---
 
@@ -608,3 +621,149 @@ version_for_run('04_reporting_pipeline', '2026-09-09')
 
 A trace now names the commit its SQL came from instead of admitting it does not
 know.
+
+### Tasks 2-5 -- the DIAGNOSE and REMEDIATE DAGs
+
+Two DAGs, one new library module (`branchlin.remediate`), 90 new tests. Final
+counts: **167 passing in the scheduler container with nothing skipped**; 110 on
+the host; 145 passing and 22 skipped under `astro dev pytest`, which has neither
+the `.git` mount nor a migrated metadata database.
+
+The shape of REMEDIATE is the deliverable:
+
+```
+SETUP     embargo        mark the affected reports not-for-publication
+TASK      blast_radius   walk forward from the correction over the -- depends: graph
+TASK      correction     apply the operator-supplied data fix
+TASK      recompute      re-run the affected relations in dependency order
+TASK      verify_report  mapped over the affected reports, one row each
+TASK      measure        read the corrected figure, build the evidence
+GATE      approval       ApprovalOperator; parks in awaiting_input
+TASK      notify         MOCKED -- writes a row, sends nothing
+TEARDOWN  lift_embargo   runs on SUCCESS **OR FAILURE**
+```
+
+**Surprise 24 -- a recompute is a fold, not a map, and mapping it produced a
+confidently wrong answer.** The brief specified dynamic task mapping over the
+affected set, which is the obvious shape and reads beautifully in the UI: one
+row per relation. It was implemented that way, pinned to a single slot with
+`max_active_tis_per_dag=1` on top of the `duckdb_writer` pool, on the assumption
+that a single slot would also mean map-index order.
+
+It does not. Mapped instances are scheduled independently -- the first run
+started at `map_index=7` -- and the observed rebuild order was:
+
+```
+positions_adjusted, positions_netted, desk_summary, positions_accrued,
+book_positions, regulatory_extract, trades_classified, positions_marked,
+recon_control, pnl_daily
+```
+
+`rpt.desk_summary` was rebuilt third, from inputs that had not been rebuilt yet.
+Every task succeeded, the run went green, and the "corrected" figure came back
+as **501,622.18** -- the original wrong number. Serialising execution is not
+ordering it, and a computation whose steps depend on each other cannot be
+expressed as a map however few slots it is given.
+
+The recompute is now a single sequential task. Dynamic mapping moved to
+`verify_report`, where the units genuinely are independent -- each reads one
+relation and nothing else -- so the per-relation UI rows are kept for the part
+that can honestly have them.
+
+**Surprise 25 -- the recompute has to start where the fix landed, not where the
+break was, and getting this wrong is silent.** Twice, one level apart.
+
+First, `blast_radius` returned strictly-downstream relations, excluding the
+break itself. But the break relation is the statement that *consumed* the bad
+input, so it is the statement that must consume the corrected input. Excluding
+it meant the fix never entered the pipeline and all ten downstream relations
+faithfully recomputed the same wrong number.
+
+Fixing that was not enough. The correction inserts into `raw.fx_rates`; the
+break is at `trd.trades_converted`, three relations later. In between sit
+`ref.fx_rates` and `ref.validity_window`, both *upstream* of the break and so in
+nobody's blast radius -- and `ref.fx_rates` is the table the broken LEFT JOIN
+actually reads. Rebuilding from the break left the corrected rate sitting in
+`raw` where nothing downstream would ever look at it.
+
+Both attempts produced a green run, a completed approval gate, and a delta of
+`-0.00`. The failure mode of a remediation is not a crash; it is a restatement
+that restates nothing.
+
+The recompute now starts from the relation the *correction* writes to, extracted
+from the correction SQL with sqlglot (`correction_target`) rather than taken as
+a parameter that can be set wrong. For BUG A that yields 13 relations beginning
+at `ref.fx_rates`, and the figure moves 501,622.18 -> **607,617.49**, matching
+the healthy pipeline exactly.
+
+**Surprise 26 -- a HITL gate cannot be approved by writing the obvious two
+columns.** `hitl_detail` holds `chosen_options`, `responded_at` and
+`responded_by`, so approving programmatically for a test looked like a two-column
+update plus flipping the task from `awaiting_input` to `scheduled`. The
+scheduler duly re-queued the task, which then failed with:
+
+```
+TypeError: ApprovalOperator.execute_complete() missing 1 required
+positional argument: 'event'
+```
+
+The resume path needs the `event` payload the API endpoint attaches; the
+endpoint does more than it appears to. The tests now approve through the real
+`PATCH .../taskInstances/{task_id}/{map_index}/hitlDetails`, which is better
+anyway -- the test exercises exactly what a human clicking **Approve** does.
+Note the endpoint is reachable from inside the containers at
+`http://api-server:8080`, not at the `AIRFLOW__API__BASE_URL` of
+`http://localhost:8080`, which is correct only for a browser on the host.
+
+**Two smaller findings.** A teardown's trigger rule is
+`ALL_DONE_SETUP_SUCCESS`, not `ALL_DONE` -- it runs however the upstream
+finished, but only if the setup that placed the embargo actually succeeded,
+which is the stronger and more correct condition. And the `astro dev pytest`
+container has no Postgres configured and silently falls back to an empty SQLite
+file, so a `SELECT 1` liveness probe reported a usable metadata database and
+eight tests then errored on `no such table: dag_run`. The probe now queries
+`dag_run` itself, which is the difference between skipping cleanly and failing
+confusingly.
+
+**The failure path, proved (Task 4).** `TestFailurePath` runs REMEDIATE with the
+recompute rigged to fail and asserts the eight things that matter:
+
+| assertion | result |
+|---|---|
+| the run is reported as `failed` | a successful cleanup must not mask a failed remediation |
+| `recompute` failed | the rigged failure fired |
+| `embargo` was set | the setup ran |
+| **`lift_embargo` succeeded anyway** | the teardown is why this works |
+| the embargo is lifted *in the warehouse* | not just that the task ran |
+| the approval gate was never reached | `upstream_failed`, not `awaiting_input` |
+| nothing was notified | the irreversible action did not happen |
+| the state left behind is reasonable | reports still hold the original figure, not a half-recomputed one; the remediation log is empty |
+
+That last row is the argument for an orchestrator over a script. A script would
+need its own `finally` and would still lose if the process were killed; and
+having got the cleanup right, it would have to avoid reporting success just
+because the cleanup worked.
+
+**The happy path, proved (Task 5).** `TestHappyPath` seeds BUG A, triggers
+REMEDIATE, waits for the gate to park, captures the evidence while it is parked
+(it is gone once the run finishes), approves through the API, and asserts the
+figure reads 607,617.49, the notification fired exactly once and was a `MOCK`,
+the embargo lifted, and the rebuild started at `ref.fx_rates` with the break
+relation before the report. Both tests restore a healthy warehouse afterwards,
+because the DAG resolves the real one and cannot be handed a private copy.
+
+**What the gate actually shows.** Rendered markdown, captured from a real parked
+run:
+
+```
+| published (wrong) | 501,622.18 |
+| corrected         | 607,617.49 |
+| delta             | 105,995.31 |
+
+- break at `trd.trades_converted` in CTE `converted` (02_trades/05_convert_currency.sql)
+- code version the original ran under: `b5e8748df0c1` (via run-xcom)
+```
+
+The delta is the Phase 0 figure to the cent, arrived at from the other
+direction: Phase 0 measured it by seeding the bug, Phase 2 measured it by
+remediating it.

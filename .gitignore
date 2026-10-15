@@ -1,7 +1,6 @@
 .git
 .env
 .DS_Store
-airflow_settings.yaml
 __pycache__/
 astro
 .venv
@@ -83,3 +82,13 @@ include/dbt_fixture/logs/
 include/dbt_fixture/.user.yml
 # the dbt adapter venv (see requirements-dbt.txt)
 .venv-dbt/
+# dbt fixture warehouse, rebuilt by `dbt seed`
+include/dbt_fixture/fixture.duckdb
+
+# Airflow task logs and local runtime state
+logs/
+.astro/config.yaml.lock
+
+# Local tooling
+.claude/
+*.log

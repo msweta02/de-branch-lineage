@@ -31,7 +31,7 @@ boundaries, because a CTE is not materialised -- there is no table to probe.
 So the walk reasons about CTE steps *statically* (which step computes the
 column, which branch points sit in it) and gathers *evidence* at relation
 granularity. A break is therefore localised to a CTE by analysis and confirmed
-by measurement at the relation that contains it. See docs/BUILD_LOG.md,
+by measurement at the relation that contains it. See docs/build-log.md,
 "Surprise 17".
 """
 

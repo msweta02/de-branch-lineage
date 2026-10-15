@@ -171,9 +171,10 @@ class SQLSource(ABC):
     def count_branch_points(self, relations: Iterable[str]) -> dict[str, int]:
         """Sum branch points over ``relations``.
 
-        This is the counter behind the figures in docs/STATUS_TECHNICAL.md
-        section 3.6. It exists as library code, with a test over it, precisely
-        so those figures stop being the output of a throwaway script.
+        This is the counter behind the figures in docs/technical-reference.md,
+        "Branch points on the BUG A path". It exists as library code, with a
+        test over it, precisely so those figures stop being the output of a
+        throwaway script.
         """
         total: dict[str, int] = {}
         for rel in relations:
