@@ -22,7 +22,7 @@ pool because DuckDB permits a single writer. The natural assumption is that
 read-only probes are exempt. They are not: DuckDB's lock is on the *file*, and
 a ``read_only=True`` connection opened while a writer holds it fails with
 ``Could not set lock on file ... Conflicting lock is held``. Measured, not
-assumed -- see docs/BUILD_LOG.md, "Surprise 16". A DIAGNOSE task must therefore
+assumed -- see docs/build-log.md, "Surprise 16". A DIAGNOSE task must therefore
 take the same ``duckdb_writer`` slot as a pipeline task, and
 :data:`REQUIRES_WRITER_POOL` records that so the Phase 2 DAG cannot forget it.
 """

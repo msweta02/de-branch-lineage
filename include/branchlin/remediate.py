@@ -215,7 +215,7 @@ def blast_radius(
       the fix never enters the pipeline and every downstream relation
       recomputes the same wrong number from the same stale row. That is not a
       hypothetical -- it happened, and the "corrected" figure came back
-      identical to the original. See docs/BUILD_LOG.md, "Surprise 25".
+      identical to the original. See docs/build-log.md, "Surprise 25".
     """
     affected: set[str] = set()
     frontier = [break_relation]
@@ -446,7 +446,7 @@ def correction_target(sql: str | None) -> str | None:
     recompute starting at the break rebuilds everything except the two
     relations that actually needed it, and the corrected figure comes back
     identical to the wrong one. Twice, in this project's case, one level apart.
-    See docs/BUILD_LOG.md, "Surprise 25".
+    See docs/build-log.md, "Surprise 25".
 
     Parsed with sqlglot rather than taken as a parameter so it cannot be set
     wrong, and so a correction written by hand at 2am still rebuilds the right

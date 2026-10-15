@@ -1,0 +1,28 @@
+# Local Airflow objects, loaded by `astro dev start`.
+#
+# The Astro CLI's default .gitignore excludes this file because it can hold
+# credentials. This project commits it on purpose: it holds none, and the DAGs
+# cannot run without it -- every SQL task names the `duckdb_writer` pool, and a
+# task assigned to a pool that does not exist never runs. Never add real
+# credentials here; put them in `.env` (gitignored) instead.
+airflow:
+  connections:
+    # The prober will resolve the warehouse through Airflow's connection
+    # registry rather than a hardcoded path, so the same trace runs against
+    # DuckDB locally and a real warehouse in a deployment.
+    - conn_id: duckdb_warehouse
+      conn_type: generic
+      conn_host: /usr/local/airflow/include/data/warehouse.duckdb
+      conn_schema:
+      conn_login:
+      conn_password:
+      conn_port:
+      conn_extra:
+        database: /usr/local/airflow/include/data/warehouse.duckdb
+  pools:
+    - pool_name: duckdb_writer
+      pool_slot: 1
+      pool_description: DuckDB accepts a single writer; serialise SQL tasks.
+  variables:
+    - variable_name: branchlin_sql_root
+      variable_value: /usr/local/airflow/include/sql

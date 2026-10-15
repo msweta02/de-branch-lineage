@@ -23,7 +23,7 @@ external consumer that a published number was wrong is the one genuinely
 irreversible action in this project, which is why it is mocked *and* gated.
 
 (Mentions airflow and dag explicitly for safe-mode discovery -- see
-docs/BUILD_LOG.md, Surprise 7.)
+docs/build-log.md, Surprise 7.)
 """
 
 from __future__ import annotations
@@ -196,7 +196,7 @@ def remediate():
         rebuilt yet, and the "corrected" figure came back as 501,622.18 -- the
         original wrong number. Serialising execution is not the same as ordering
         it, and a recompute whose steps depend on each other cannot be expressed
-        as a map. See docs/BUILD_LOG.md, "Surprise 24".
+        as a map. See docs/build-log.md, "Surprise 24".
 
         Per-relation visibility is kept by the mapped `verify_report` tasks
         below, which genuinely are independent of one another.

@@ -1,5 +1,11 @@
 # The two planted bugs
 
+The pipeline carries two deliberate faults. Each one survives the pipeline's
+own controls and produces an exact, reproducible error on a report. They are
+the test cases that DIAGNOSE and REMEDIATE are measured against. For how
+DIAGNOSE finds them, see [architecture.md](architecture.md#how-a-diagnosis-works).
+To plant and diagnose them yourself, see [running-the-demo.md](running-the-demo.md).
+
 Both are toggled from `include/seed/generate.py`. The SQL is **byte-identical**
 between the healthy and the broken run — only the seeded data changes. That is
 deliberate on two counts: the parser must see production-shaped SQL rather than
@@ -13,7 +19,7 @@ did" is how these failures actually arrive.
 
 All four scenarios produce a byte-identical `raw.trades` — 54,475 rows, gross
 6,346,061,649.20 — so any delta between them is attributable to the bug and
-nothing else. See BUILD_LOG.md, "Surprise 4", for why this took a fix.
+nothing else. See [build-log.md](build-log.md), "Surprise 4", for why this took a fix.
 
 ---
 
@@ -47,7 +53,7 @@ WHERE conjuncts — spread over 30 CTE-level intermediate steps.
 
 These are counted with sqlglot over the eleven files on the path, not
 estimated. `ref.validity_window` is excluded: it is a side input that never
-carries `base_amount`. Phase 1 confirmed that exclusion is right rather than
+carries `base_amount`. The tracer confirms that exclusion is right rather than
 convenient — the join reads `ON c.currency = w.ccy`, with no date at all, so it
 cannot transmit a per-date FX fault, and the tracer walks the same eleven
 relations without being told which they are.
@@ -68,10 +74,10 @@ correct about what it counts and one short of what there is to count. Both
 figures are now asserted by `tests/branchlin/test_parser_counts.py`, which is
 what surfaced the discrepancy in the first place.
 
-Note that the brief asked for 15+ hops. At *file* granularity the 20-file
-layout cannot deliver that on one straight line — reference feeds trades at
-file 5 of 6. At every granularity the reconciler actually works in, the
-distance is comfortably past 15.
+At *file* granularity the 20-file layout cannot put 15 or more hops on one
+straight line, because reference data feeds trades at file 5 of 6. At every
+granularity the reconciler actually works in, the distance between cause and
+symptom is comfortably past 15.
 
 ### Why the control does not catch it
 

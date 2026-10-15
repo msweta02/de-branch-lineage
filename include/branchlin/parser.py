@@ -19,7 +19,8 @@ dbt's compiled output -- and never reaches for a filesystem itself.
 Every branch point is attributed to the *step* that contains it: the name of
 the enclosing CTE, or :data:`FINAL_STEP` for the outermost SELECT. That is the
 granularity the tracer walks (30 steps across the BUG A causal path); hops are
-reported at relation granularity. See docs/STATUS_TECHNICAL.md section 3.6.
+reported at relation granularity. See docs/technical-reference.md, "Branch
+points on the BUG A path".
 """
 
 from __future__ import annotations
@@ -45,9 +46,9 @@ JOIN = "join"
 QUALIFY = "qualify"
 
 #: The three kinds whose sum is the "69 branch points" figure quoted in the
-#: README and in docs/STATUS_TECHNICAL.md section 3.6. QUALIFY is deliberately
-#: excluded: the original count was produced before the parser looked for it.
-#: See docs/BUILD_LOG.md, "Surprise 14".
+#: README and in docs/technical-reference.md, "Branch points on the BUG A
+#: path". QUALIFY is deliberately excluded: the original count was produced
+#: before the parser looked for it. See docs/build-log.md, "Surprise 14".
 DOCUMENTED_KINDS = (CASE_WHEN, CASE_ELSE, WHERE, HAVING, JOIN)
 
 _TARGET_RE = re.compile(r"^--\s*target:\s*(\S+)", re.MULTILINE)
@@ -312,7 +313,7 @@ def _step_reads(scope: exp.Expression) -> tuple[str, ...]:
         return ()
     # sqlglot 30 renamed this arg key from "from" to "from_", and args.get on
     # the old name returns None rather than raising -- a silently empty read
-    # list. Accept both. See docs/BUILD_LOG.md, "Surprise 15".
+    # list. Accept both. See docs/build-log.md, "Surprise 15".
     frm = select.args.get("from_") or select.args.get("from")
     if frm is not None:
         for table in frm.find_all(exp.Table):

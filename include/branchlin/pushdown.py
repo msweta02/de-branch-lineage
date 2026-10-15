@@ -44,7 +44,7 @@ Each narrows the widened set without risking a false exoneration, so they are
 improvements in precision, not in correctness. The engine is sound without
 them -- a too-broad selector still contains the break -- but a trace through a
 window-heavy pipeline will do more work than it needs to. See
-docs/BUILD_LOG.md, Phase 1 "Still open".
+docs/build-log.md, Phase 1 "Still open".
 """
 
 from __future__ import annotations

@@ -4,6 +4,6 @@
 # `git archive` to recover the SQL that actually ran on the date under
 # investigation. The Astro Runtime image ships no git binary, and GitPython-free
 # though pinning is, it still shells out to the real thing -- without this the
-# import succeeds and every pinned read fails at runtime. See docs/BUILD_LOG.md,
+# import succeeds and every pinned read fails at runtime. See docs/build-log.md,
 # "Surprise 12".
 git

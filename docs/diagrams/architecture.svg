@@ -1,0 +1,272 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1120" width="1600" height="1120" font-family="Inter, 'Ubuntu Sans', 'DejaVu Sans', sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+    </marker>
+    <marker id="arrow-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .mono { font-family: 'JetBrains Mono', 'Ubuntu Mono', 'DejaVu Sans Mono', monospace; }
+      .title { font-size: 30px; font-weight: 700; fill: #0f172a; }
+      .sub { font-size: 15px; fill: #475569; }
+      .h { font-size: 17px; font-weight: 700; fill: #0f172a; }
+      .lane { font-size: 13px; font-weight: 700; letter-spacing: 1.6px; }
+      .lanedesc { font-size: 13px; fill: #475569; }
+      .chip { font-size: 13.5px; font-weight: 700; fill: #0f172a; }
+      .chipsub { font-size: 11.5px; fill: #475569; }
+      .note { font-size: 12.5px; fill: #475569; }
+      .tag { font-size: 11.5px; fill: #334155; font-weight: 600; }
+      .edge { stroke: #475569; stroke-width: 1.6; fill: none; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1120" fill="#ffffff"/>
+
+  <!-- ===================== header ===================== -->
+  <text x="40" y="72" class="title">de-branch-lineage</text>
+  <text x="40" y="104" class="sub">Branch-level lineage for Airflow: find the CASE arm, filter or join behind a wrong</text>
+  <text x="40" y="126" class="sub">number, then repair it in dependency order behind a human approval gate.</text>
+
+  <!-- ===================== inputs (top) ===================== -->
+  <g filter="url(#shadow)">
+    <rect x="940" y="56" width="250" height="94" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+  </g>
+  <text x="960" y="86" class="h">Git repository</text>
+  <text x="960" y="110" class="note">SQL + DAG history, mounted</text>
+  <text x="960" y="128" class="note">read-only into the containers</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1240" y="56" width="320" height="94" rx="12" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+  </g>
+  <text x="1260" y="86" class="h">Seed generator</text>
+  <text x="1260" y="110" class="note mono">include/seed/generate.py</text>
+  <text x="1260" y="130" class="note">synthetic trading book · healthy / bug A / bug B</text>
+
+  <!-- ===================== Airflow container ===================== -->
+  <rect x="40" y="190" width="1150" height="810" rx="18" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="62" y="223" class="h">Apache Airflow 3.3</text>
+  <text x="236" y="223" class="lanedesc">Astro Runtime 3.3-7 · scheduler · dag-processor · triggerer · api-server · Postgres metadata DB</text>
+
+  <!-- ---------- pipeline lane ---------- -->
+  <rect x="60" y="240" width="1110" height="160" rx="12" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+  <text x="80" y="268" class="lane" fill="#1d4ed8">PIPELINE</text>
+  <text x="172" y="268" class="lanedesc">4 Asset-wired DAGs · 20 SQL tasks · builds ref → trd → pos → rpt</text>
+
+  <g filter="url(#shadow)">
+    <rect x="80"  y="282" width="205" height="70" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5"/>
+    <rect x="310" y="282" width="205" height="70" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5"/>
+    <rect x="540" y="282" width="205" height="70" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5"/>
+    <rect x="770" y="282" width="205" height="70" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5"/>
+  </g>
+  <text x="96"  y="307" class="chip mono">01_reference</text>
+  <text x="96"  y="326" class="chipsub">calendar · FX rates · books</text>
+  <text x="96"  y="342" class="chipsub">counterparties · FX coverage</text>
+  <text x="326" y="307" class="chip mono">02_trades</text>
+  <text x="326" y="326" class="chipsub">ingest · dedupe · amend</text>
+  <text x="326" y="342" class="chipsub">enrich · convert to USD · classify</text>
+  <text x="556" y="307" class="chip mono">03_positions</text>
+  <text x="556" y="326" class="chipsub">aggregate · corporate actions</text>
+  <text x="556" y="342" class="chipsub">mark-to-market · accrue · net</text>
+  <text x="786" y="307" class="chip mono">04_reporting</text>
+  <text x="786" y="326" class="chipsub">daily P&amp;L · regulatory extract</text>
+  <text x="786" y="342" class="chipsub">desk summary · recon control</text>
+  <line x1="286" y1="317" x2="308" y2="317" class="edge" marker-end="url(#arrow)"/>
+  <line x1="516" y1="317" x2="538" y2="317" class="edge" marker-end="url(#arrow)"/>
+  <line x1="746" y1="317" x2="768" y2="317" class="edge" marker-end="url(#arrow)"/>
+  <text x="80" y="383" class="note">One statement per .sql file, with <tspan class="mono">-- target:</tspan> / <tspan class="mono">-- depends:</tspan> headers · each task records its git commit to XCom</text>
+
+  <!-- ---------- DIAGNOSE lane ---------- -->
+  <rect x="60" y="420" width="770" height="170" rx="12" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="80" y="448" class="lane" fill="#b45309">DIAGNOSE</text>
+  <text x="172" y="448" class="lanedesc"><tspan class="mono">dags/diagnose.py</tspan> · walk back from the wrong figure, stop at the first broken hop</text>
+
+  <g filter="url(#shadow)">
+    <rect x="80"  y="466" width="220" height="66" rx="10" fill="#ffffff" stroke="#d97706" stroke-width="1.5"/>
+    <rect x="335" y="466" width="220" height="66" rx="10" fill="#ffffff" stroke="#d97706" stroke-width="1.5"/>
+    <rect x="590" y="466" width="220" height="66" rx="10" fill="#ffffff" stroke="#d97706" stroke-width="1.5"/>
+  </g>
+  <text x="96"  y="493" class="chip mono">investigate</text>
+  <text x="96"  y="514" class="chipsub">INVESTIGATE trace via branchlin</text>
+  <text x="351" y="493" class="chip mono">break_found</text>
+  <text x="351" y="514" class="chipsub">short-circuit on the verdict</text>
+  <text x="606" y="493" class="chip mono">trigger_remediate</text>
+  <text x="606" y="514" class="chipsub">opt-in hand-off of the break</text>
+  <line x1="301" y1="499" x2="333" y2="499" class="edge" marker-end="url(#arrow)"/>
+  <line x1="556" y1="499" x2="588" y2="499" class="edge" marker-end="url(#arrow)"/>
+  <text x="80" y="566" class="note">Verdict, root-cause CTE and blamed branch</text>
+  <text x="80" y="582" class="note">go to the task log and to XCom.</text>
+
+  <!-- trigger hand-off -->
+  <path d="M700,533 L700,606" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow-v)"/>
+  <text x="712" y="566" class="tag" fill="#6d28d9">conf: break +</text>
+  <text x="712" y="582" class="tag" fill="#6d28d9">correction SQL</text>
+
+  <!-- ---------- REMEDIATE lane ---------- -->
+  <rect x="60" y="610" width="770" height="370" rx="12" fill="#f5f3ff" stroke="#ddd6fe" stroke-width="1.5"/>
+  <text x="80" y="638" class="lane" fill="#6d28d9">REMEDIATE</text>
+  <text x="182" y="638" class="lanedesc"><tspan class="mono">dags/remediate.py</tspan> · repair, recompute, ask a human, then publish</text>
+
+  <!-- row a -->
+  <g filter="url(#shadow)">
+    <rect x="80"  y="660" width="130" height="66" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+    <rect x="230" y="660" width="130" height="66" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+    <rect x="380" y="660" width="130" height="66" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+    <rect x="530" y="660" width="130" height="66" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+    <rect x="680" y="660" width="130" height="66" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  </g>
+  <text x="92"  y="686" class="chip mono">embargo</text>
+  <text x="92"  y="707" class="chipsub">setup · hold reports</text>
+  <text x="242" y="686" class="chip mono">blast_radius</text>
+  <text x="242" y="707" class="chipsub">walk forward</text>
+  <text x="392" y="686" class="chip mono">correction</text>
+  <text x="392" y="707" class="chipsub">apply the data fix</text>
+  <text x="542" y="686" class="chip mono">recompute</text>
+  <text x="542" y="707" class="chipsub">dependency order</text>
+  <text x="692" y="686" class="chip mono">verify_report</text>
+  <text x="692" y="707" class="chipsub">mapped, 1 per report</text>
+  <line x1="211" y1="693" x2="228" y2="693" class="edge" marker-end="url(#arrow)"/>
+  <line x1="361" y1="693" x2="378" y2="693" class="edge" marker-end="url(#arrow)"/>
+  <line x1="511" y1="693" x2="528" y2="693" class="edge" marker-end="url(#arrow)"/>
+  <line x1="661" y1="693" x2="678" y2="693" class="edge" marker-end="url(#arrow)"/>
+
+  <!-- wrap -->
+  <line x1="745" y1="727" x2="745" y2="788" class="edge" marker-end="url(#arrow)"/>
+
+  <!-- row b (right to left) -->
+  <g filter="url(#shadow)">
+    <rect x="680" y="790" width="130" height="66" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+    <rect x="480" y="790" width="130" height="66" rx="10" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <rect x="280" y="790" width="130" height="66" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <rect x="80"  y="790" width="130" height="66" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  </g>
+  <text x="692" y="816" class="chip mono">measure</text>
+  <text x="692" y="837" class="chipsub">evidence + delta</text>
+  <text x="492" y="816" class="chip" fill="#b91c1c">Approval gate</text>
+  <text x="492" y="835" class="chipsub">human in the loop</text>
+  <text x="492" y="850" class="chipsub mono">awaiting_input</text>
+  <text x="292" y="816" class="chip mono">notify</text>
+  <text x="292" y="835" class="chipsub">mock: writes a row,</text>
+  <text x="292" y="850" class="chipsub">sends nothing</text>
+  <text x="92"  y="816" class="chip mono">lift_embargo</text>
+  <text x="92"  y="835" class="chipsub">teardown: runs on</text>
+  <text x="92"  y="850" class="chipsub">success or failure</text>
+  <line x1="679" y1="823" x2="612" y2="823" class="edge" marker-end="url(#arrow)"/>
+  <line x1="479" y1="823" x2="412" y2="823" class="edge" marker-end="url(#arrow)"/>
+  <line x1="279" y1="823" x2="212" y2="823" class="edge" marker-end="url(#arrow)"/>
+
+  <!-- setup / teardown bracket -->
+  <path d="M80,700 C62,700 66,700 66,716 L66,808 C66,823 70,823 80,823" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4 4" fill="none"/>
+
+  <text x="80" y="896" class="note">The affected reports stay embargoed for the whole run.</text>
+  <text x="80" y="916" class="note">The teardown lifts the embargo on success or failure.</text>
+  <text x="80" y="936" class="note">Nothing is notified unless a human approves.</text>
+  <text x="80" y="956" class="note">A failed run is still reported as failed.</text>
+
+  <!-- ---------- branchlin column ---------- -->
+  <rect x="850" y="420" width="320" height="560" rx="12" fill="#ecfeff" stroke="#a5f3fc" stroke-width="1.5"/>
+  <text x="870" y="448" class="lane" fill="#0e7490">BRANCHLIN</text>
+  <text x="870" y="468" class="lanedesc"><tspan class="mono">include/branchlin</tspan> · the library</text>
+
+  <g filter="url(#shadow)" fill="#ffffff" stroke="#0891b2" stroke-width="1.3">
+    <rect x="868" y="482" width="284" height="50" rx="9"/>
+    <rect x="868" y="540" width="284" height="50" rx="9"/>
+    <rect x="868" y="598" width="284" height="50" rx="9"/>
+    <rect x="868" y="656" width="284" height="50" rx="9"/>
+    <rect x="868" y="714" width="284" height="50" rx="9"/>
+    <rect x="868" y="772" width="284" height="50" rx="9"/>
+    <rect x="868" y="830" width="284" height="50" rx="9"/>
+    <rect x="868" y="888" width="284" height="50" rx="9"/>
+  </g>
+  <text x="884" y="503" class="chip mono">pinning</text>
+  <text x="884" y="521" class="chipsub">which code ran · git archive @ SHA</text>
+  <text x="884" y="561" class="chip mono">sources.rawfiles</text>
+  <text x="884" y="579" class="chipsub">reads include/sql + the depends graph</text>
+  <text x="884" y="619" class="chip mono">parser</text>
+  <text x="884" y="637" class="chipsub">sqlglot → CASE arms, filters, joins</text>
+  <text x="884" y="677" class="chip mono">pushdown</text>
+  <text x="884" y="695" class="chipsub">carries the row's selector upstream</text>
+  <text x="884" y="735" class="chip mono">prober</text>
+  <text x="884" y="753" class="chipsub">narrow, read-only point queries</text>
+  <text x="884" y="793" class="chip mono">reconciler</text>
+  <text x="884" y="811" class="chipsub">does each hop balance? blame a CTE</text>
+  <text x="884" y="851" class="chip mono">tracer</text>
+  <text x="884" y="869" class="chipsub">the INVESTIGATE / EXPLAIN walk</text>
+  <text x="884" y="909" class="chip mono">remediate</text>
+  <text x="884" y="927" class="chipsub">blast radius · recompute order · embargo</text>
+
+  <!-- uses -->
+  <line x1="811" y1="499" x2="866" y2="499" class="edge" marker-end="url(#arrow)"/>
+  <text x="818" y="490" class="tag">uses</text>
+  <line x1="811" y1="693" x2="866" y2="693" class="edge" marker-end="url(#arrow)"/>
+  <text x="818" y="684" class="tag">uses</text>
+
+  <!-- git -> pinning -->
+  <line x1="1120" y1="151" x2="1120" y2="480" class="edge" marker-end="url(#arrow)"/>
+  <text x="1110" y="210" class="tag" text-anchor="end">SQL as it was</text>
+  <text x="1110" y="226" class="tag" text-anchor="end">at the run's commit</text>
+
+  <!-- ===================== warehouse ===================== -->
+  <rect x="1240" y="190" width="320" height="810" rx="18" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="1262" y="225" class="h">DuckDB warehouse</text>
+  <text x="1262" y="246" class="note mono">include/data/warehouse.duckdb</text>
+
+  <g filter="url(#shadow)" fill="#ffffff" stroke="#16a34a" stroke-width="1.3">
+    <rect x="1258" y="266" width="284" height="62" rx="9"/>
+    <rect x="1258" y="340" width="284" height="62" rx="9"/>
+    <rect x="1258" y="414" width="284" height="62" rx="9"/>
+    <rect x="1258" y="488" width="284" height="62" rx="9"/>
+    <rect x="1258" y="562" width="284" height="62" rx="9"/>
+    <rect x="1258" y="636" width="284" height="62" rx="9"/>
+  </g>
+  <text x="1274" y="292" class="chip mono">raw.*</text>
+  <text x="1274" y="312" class="chipsub">landing tables written by the seed</text>
+  <text x="1274" y="366" class="chip mono">ref.*</text>
+  <text x="1274" y="386" class="chipsub">calendar · FX rates · books · coverage</text>
+  <text x="1274" y="440" class="chip mono">trd.*</text>
+  <text x="1274" y="460" class="chipsub">deduped → converted → classified trades</text>
+  <text x="1274" y="514" class="chip mono">pos.*</text>
+  <text x="1274" y="534" class="chipsub">book positions · marked · accrued · netted</text>
+  <text x="1274" y="588" class="chip mono">rpt.*</text>
+  <text x="1274" y="608" class="chipsub">P&amp;L · regulatory · desk summary · recon</text>
+  <text x="1274" y="662" class="chip mono">meta.*</text>
+  <text x="1274" y="682" class="chipsub">embargo · remediation log · notifications</text>
+
+  <text x="1262" y="740" class="note">Single writer: every task that writes</text>
+  <text x="1262" y="758" class="note">holds the <tspan class="mono">duckdb_writer</tspan> pool (1 slot),</text>
+  <text x="1262" y="776" class="note">and so does DIAGNOSE, because DuckDB's</text>
+  <text x="1262" y="794" class="note">file lock refuses even read-only</text>
+  <text x="1262" y="812" class="note">connections while a writer holds it.</text>
+
+  <!-- seed -> raw -->
+  <line x1="1530" y1="151" x2="1530" y2="264" class="edge" marker-end="url(#arrow)"/>
+
+  <!-- pipeline -> warehouse -->
+  <line x1="976" y1="317" x2="1256" y2="317" class="edge" marker-end="url(#arrow)"/>
+  <text x="988" y="337" class="tag">reads raw ·</text>
+  <text x="988" y="353" class="tag">writes ref → rpt</text>
+
+  <!-- prober -> warehouse -->
+  <line x1="1153" y1="739" x2="1256" y2="739" class="edge" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="1160" y="730" class="tag">read-only</text>
+  <!-- remediate -> warehouse -->
+  <line x1="1153" y1="913" x2="1256" y2="913" class="edge" marker-end="url(#arrow)"/>
+  <text x="1262" y="896" class="note">REMEDIATE writes the correction,</text>
+  <text x="1262" y="914" class="note">the recompute, the embargo and</text>
+  <text x="1262" y="932" class="note">the remediation log here.</text>
+
+  <!-- ===================== reviewer ===================== -->
+  <g filter="url(#shadow)">
+    <rect x="400" y="1030" width="290" height="70" rx="12" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+  </g>
+  <text x="420" y="1059" class="h">Human reviewer</text>
+  <text x="420" y="1082" class="note">approves in Airflow → Required Actions</text>
+  <line x1="545" y1="1029" x2="545" y2="858" stroke="#dc2626" stroke-width="1.8" fill="none" marker-end="url(#arrow-r)"/>
+  <text x="556" y="1016" class="tag" fill="#b91c1c">Approve / Reject</text>
+</svg>

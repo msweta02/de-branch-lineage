@@ -19,7 +19,7 @@ skipped unless one is reachable. It passes in the scheduler container:
 
 It is skipped under `astro dev pytest`, which runs a one-off container with no
 metadata database and, separately, without the `.git` mount (see
-docs/BUILD_LOG.md, Surprise 23).
+docs/build-log.md, Surprise 23).
 """
 
 from __future__ import annotations
@@ -77,7 +77,8 @@ class TestDiagnoseStructure:
         """A read-only probe is not exempt from DuckDB's file lock.
 
         Measured in Phase 1: a read_only connection opened while a pipeline task
-        holds the file is refused outright. See BUILD_LOG "Surprise 16".
+        holds the file is refused outright. See docs/build-log.md,
+        "Surprise 16".
         """
         assert task(diagnose_dag, "investigate").pool == "duckdb_writer"
 
@@ -173,7 +174,7 @@ class TestRemediateStructure:
 
         Mapped instances are not scheduled in map-index order, so a mapped
         recompute rebuilt reports from stale inputs and "corrected" the figure
-        to the original wrong number. See BUILD_LOG "Surprise 24".
+        to the original wrong number. See docs/build-log.md, "Surprise 24".
         """
         assert not task(remediate_dag, "recompute").is_mapped
 
@@ -440,7 +441,7 @@ def _approve(dag_run_id: str, task_id: str = GATE, option: str = "Approve") -> i
     endpoint attaches, and without it the gate fails with
     `execute_complete() missing 1 required positional argument: 'event'`.
     Tested through the API, the test exercises what a human clicking Approve
-    actually does. See docs/BUILD_LOG.md, "Surprise 26".
+    actually does. See docs/build-log.md, "Surprise 26".
     """
     import json as _json
     import urllib.parse

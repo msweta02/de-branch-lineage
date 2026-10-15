@@ -28,10 +28,10 @@ def selector(date: str) -> str:
     return f"business_date = DATE '{date}'"
 
 
-# The path documented in STATUS_TECHNICAL section 3.6, in the order the tracer
-# walks it (report first). ref.fx_rates is the eleventh relation: the trace
-# names it as the fault's origin rather than walking into it, because it is
-# upstream of the break.
+# The path documented in docs/technical-reference.md, "Branch points on the
+# BUG A path", in the order the tracer walks it (report first). ref.fx_rates is
+# the eleventh relation: the trace names it as the fault's origin rather than
+# walking into it, because it is upstream of the break.
 EXPECTED_WALK = (
     "rpt.desk_summary",
     "rpt.regulatory_extract",
@@ -97,9 +97,9 @@ class TestBugA:
     def test_the_walk_is_the_documented_causal_path(self, trace):
         """Ten relations walked, plus ref.fx_rates named as the origin.
 
-        The tracer rediscovers the path that STATUS_TECHNICAL section 3.6
-        documents, without being told it: it follows the measure, not the
-        dependency edges.
+        The tracer rediscovers the path that docs/technical-reference.md
+        ("Branch points on the BUG A path") documents, without being told it:
+        it follows the measure, not the dependency edges.
         """
         assert trace.relations == EXPECTED_WALK
         assert len(trace.relations) == 10

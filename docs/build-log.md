@@ -1,7 +1,20 @@
 # Build log
 
-Running record of what worked, what didn't, and where a version surprised us.
-Kept for the README's "what was hard" section.
+The engineering journal for de-branch-lineage: what worked, what didn't, and
+where a version surprised us. It is kept as written during the build, so it
+reads chronologically, and it refers to the three phases the work was done in:
+
+| Phase | What it built |
+|---|---|
+| 0 | the environment, the pipeline, the two planted bugs and the verification harness |
+| 1 | the DIAGNOSE engine (the `branchlin` library) |
+| 2 | the DIAGNOSE and REMEDIATE DAGs, and version pinning wired end to end |
+
+Code comments across the repository cite entries here by number ("Surprise
+16"). For the current state of the system, read
+[architecture.md](architecture.md) and
+[technical-reference.md](technical-reference.md). Status statements below
+describe the project as it was at the time of writing.
 
 ---
 

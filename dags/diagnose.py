@@ -10,7 +10,7 @@ than it demonstrated.
 
 (This module mentions airflow and dag explicitly so Airflow's safe-mode DAG
 discovery will open it: a file that imports its DAG from a helper is invisible
-unless both strings appear in the source. See docs/BUILD_LOG.md, Surprise 7.)
+unless both strings appear in the source. See docs/build-log.md, Surprise 7.)
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def diagnose():
         # A read-only probe is NOT exempt from DuckDB's file lock: the lock is
         # on the file, so a read-only connection opened while a pipeline task
         # holds it is refused outright. Measured in Phase 1 -- see
-        # docs/BUILD_LOG.md, "Surprise 16", and prober.REQUIRES_WRITER_POOL.
+        # docs/build-log.md, "Surprise 16", and prober.REQUIRES_WRITER_POOL.
         pool="duckdb_writer",
     )
     def investigate(**context) -> dict:

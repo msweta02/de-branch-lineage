@@ -185,7 +185,8 @@ def _check_nulls_introduced(
 
     # Keyed by (relation, column): one relation can contribute several columns
     # to the same measure, and keying by relation alone silently drops all but
-    # the last -- which produced a false BREAK. See BUILD_LOG "Surprise 18".
+    # the last -- which produced a false BREAK. See docs/build-log.md,
+    # "Surprise 18".
     measured = {
         key: p for key, p in inputs.items()
         if p.column is not None and p.nulls is not None and key not in null_safe
@@ -229,7 +230,7 @@ def _check_nulls_introduced(
     # is actually diagnostic is whether *any* input could have supplied a NULL
     # at all -- which is why excluding COALESCE-wrapped inputs above matters so
     # much: with the calendar's single LAG-boundary NULL wrongly counted as an
-    # explanation, BUG B's guilty hop was exonerated. See BUILD_LOG
+    # explanation, BUG B's guilty hop was exonerated. See docs/build-log.md,
     # "Surprise 19".
     if output.nulls and best == 0.0:
         return Check(
